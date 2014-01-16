@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 #-------------------------------------------------------------------
 # Filename: calibration.py
 #  Purpose: Functions for relative calibration (e.g. Huddle test calibration)
@@ -87,7 +88,7 @@ def relcalstack(st1, st2, calib_file, window_len, overlap_frac=0.5, smooth=0,
     auto, _freq, _t = \
         spectral_helper(tr1, tr1, NFFT=nfft, Fs=sampfreq, noverlap=noverlap)
     cross, freq, _t = \
-        spectral_helper(tr1, tr2, NFFT=nfft, Fs=sampfreq, noverlap=noverlap)
+        spectral_helper(tr2, tr1, NFFT=nfft, Fs=sampfreq, noverlap=noverlap)
 
     res = (cross / auto).sum(axis=1) * gg
 
@@ -103,19 +104,21 @@ def relcalstack(st1, st2, calib_file, window_len, overlap_frac=0.5, smooth=0,
         spectra = np.empty((2, len(res.real)))
         spectra[0] = res.real
         spectra[1] = res.imag
-        new_spectra = konnoOhmachiSmoothing(spectra, freq, bandwidth=smooth,
-                count=1, max_memory_usage=1024, normalize=True)
+        new_spectra = \
+            konnoOhmachiSmoothing(spectra, freq, bandwidth=smooth, count=1,
+                                  max_memory_usage=1024, normalize=True)
         res.real = new_spectra[0]
         res.imag = new_spectra[1]
 
     amp = np.abs(res)
     # include phase unwrapping
-    phase = np.unwrap(np.angle(res)) + 2.0 * np.pi
+    phase = np.unwrap(np.angle(res))  # + 2.0 * np.pi
     ra = np.abs(gg)
     rpha = np.unwrap(np.angle(gg))
 
     if save_data:
-        trans_new = st2[0].stats.station + "." + st2[0].stats.channel + "." + str(window_len) + ".resp"
+        trans_new = (st2[0].stats.station + "." + st2[0].stats.channel +
+                     "." + str(window_len) + ".resp")
         trans_ref = st1[0].stats.station + ".refResp"
         # Create empty array for easy saving
         temp = np.empty((len(freq), 3))
@@ -205,7 +208,7 @@ def spectral_helper(x, y, NFFT=256, Fs=2, noverlap=0, pad_to=None,
     windowVals = np.hanning(NFFT)
 
     step = NFFT - noverlap
-    ind = np.arange(0, len(x) - NFFT + 1, step)
+    ind = np.arange(0, len(x) - NFFT + 1, step, dtype=np.int32)
     n = len(ind)
     Pxy = np.zeros((numFreqs, n), np.complex_)
 

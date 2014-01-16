@@ -99,7 +99,7 @@ import platform
 
 
 DEPENDENCIES = ['numpy', 'scipy', 'matplotlib', 'lxml.etree', 'sqlalchemy',
-                'suds', 'mpl_toolkits.basemap']
+                'suds', 'mpl_toolkits.basemap', 'mock', 'nose']
 
 PSTATS_HELP = """
 Call "python -m pstats obspy.pstats" for an interactive profiling session.
@@ -610,6 +610,13 @@ def main(interactive=True):
     If profiling is enabled we disable interactivity as it would wait for user
     input and influence the statistics. However the -r option still works.
     """
+    # catch and ignore a numpy deprecation warning
+    with warnings.catch_warnings(record=True):
+        warnings.filterwarnings(
+            "ignore", 'The compiler package is deprecated and removed in '
+            'Python 3.x.', DeprecationWarning)
+        np.safe_eval('1')
+
     if '-p' in sys.argv or '--profile' in sys.argv:
         try:
             import cProfile as Profile

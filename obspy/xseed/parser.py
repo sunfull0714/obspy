@@ -11,8 +11,10 @@ Main module containing XML-SEED parser.
 
 from StringIO import StringIO
 from lxml.etree import Element, SubElement, tostring, parse as xmlparse
+from obspy import __version__
 from obspy.core.utcdatetime import UTCDateTime
-from obspy.core.util import getExampleFile, deprecated_keywords
+from obspy.core.util import deprecated_keywords
+from obspy.core.util.decorator import map_example_filename
 from obspy.xseed import DEFAULT_XSEED_VERSION, utils, blockette
 from obspy.xseed.utils import SEEDParserException
 import copy
@@ -130,6 +132,7 @@ class Parser(object):
                  channel["latitude"], channel["longitude"])
         return ret_str.strip()
 
+    @map_example_filename("data")
     def read(self, data):
         """
         General parser method for XML-SEED and Dataless SEED files.
@@ -143,13 +146,6 @@ class Parser(object):
             self.__init__()
         # try to transform everything into StringIO object
         if isinstance(data, basestring):
-            # if it starts with /path/to/ try to search in examples
-            if data.startswith('/path/to/'):
-                try:
-                    data = getExampleFile(data[9:])
-                except:
-                    # otherwise just try to read the given /path/to folder
-                    pass
             if "://" in data:
                 # some URL
                 data = urllib2.urlopen(data).read()
@@ -356,7 +352,7 @@ class Parser(object):
                     blockettes.append(station[_i])
                     # Write header and the first two lines to the string.
                     header = \
-                        '#\t\t<< obspy.xseed, Version 0.1.3 >>\n' + \
+                        '#\t\t<< obspy, Version %s >>\n' % __version__ + \
                         '#\t\t\n' + \
                         '#\t\t======== CHANNEL RESPONSE DATA ========\n' + \
                         'B050F03     Station:     %s\n' % cur_station + \
@@ -768,10 +764,18 @@ class Parser(object):
             'B052F22     Start date:  %s\n' % channel_info['Start date'] +
             'B052F23     End date:    %s\n' % channel_info['End date'] +
             '#\t\t=======================================\n')
-        # Write all other blockettes. Currently now sorting takes place. This
-        # is just an experiment to see how rdseed does it. The Blockettes
-        # might need to be sorted.
-        for blkt in blockettes[1:]:
+
+        # Write all other blockettes. Sort by stage number (0 at the end) and
+        # the specified blockette id order.
+        order = [53, 54, 55, 56, 60, 61, 62, 57, 58, 59]
+        blockettes = sorted(
+            blockettes[1:],
+            key=lambda x: (x.stage_sequence_number
+                           if (hasattr(x, "stage_sequence_number") and
+                               x.stage_sequence_number)
+                           else float("inf"), order.index(x.id)))
+
+        for blkt in blockettes:
             if blkt.id not in RESP_BLOCKETTES:
                 continue
             try:

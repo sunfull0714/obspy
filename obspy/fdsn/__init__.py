@@ -17,19 +17,19 @@ Basic Usage
 All examples make use of the FDSN Web Service at IRIS. Other FDSN Web Service
 providers are available too, see :meth:`~obspy.fdsn.client.Client.__init__()`.
 
-(1) :meth:`~obspy.fdsn.client.Client.get_waveform()`: The following example
+(1) :meth:`~obspy.fdsn.client.Client.get_waveforms()`: The following example
     illustrates how to request and plot 60 minutes of the ``"BHZ"`` channel of
     station Albuquerque, New Mexico (``"ANMO"``) of the Global Seismograph
     Network (``"IU"``) for an seismic event around 2010-02-27 06:45 (UTC).
     Results are returned as a :class:`~obspy.core.stream.Stream` object.
     For how to send multiple requests simultaneously (avoiding network
-    overhead) see :meth:`~obspy.fdsn.client.Client.get_waveform_bulk()`
+    overhead) see :meth:`~obspy.fdsn.client.Client.get_waveforms_bulk()`
 
     >>> from obspy.fdsn import Client
     >>> from obspy import UTCDateTime
     >>> client = Client()
     >>> t = UTCDateTime("2010-02-27T06:45:00.000")
-    >>> st = client.get_waveform("IU", "ANMO", "00", "BHZ", t, t + 60 * 60)
+    >>> st = client.get_waveforms("IU", "ANMO", "00", "BHZ", t, t + 60 * 60)
     >>> st.plot()  # doctest: +SKIP
 
     .. plot::
@@ -38,11 +38,11 @@ providers are available too, see :meth:`~obspy.fdsn.client.Client.__init__()`.
         from obspy.fdsn import Client
         client = Client()
         t = UTCDateTime("2010-02-27T06:45:00.000")
-        st = client.get_waveform("IU", "ANMO", "00", "BHZ", t, t + 60 * 60)
+        st = client.get_waveforms("IU", "ANMO", "00", "BHZ", t, t + 60 * 60)
         st.plot()
 
 (2) :meth:`~obspy.fdsn.client.Client.get_events()`: Retrieves event data from
-    the server. Results are returned as a :class:`~obspy.core.event.Catalog`)
+    the server. Results are returned as a :class:`~obspy.core.event.Catalog`
     object.
 
     >>> client = Client()
@@ -68,26 +68,41 @@ providers are available too, see :meth:`~obspy.fdsn.client.Client.__init__()`.
         cat.plot()
 
 (3) :meth:`~obspy.fdsn.client.Client.get_stations()`: Retrieves station data
-    from the server. Results are returned as a StationXML string (will be
-    changed to an Obspy Inventory object in the near future).
+    from the server. Results are returned as an
+    :class:`~obspy.station.inventory.Inventory` object.
 
     >>> client = Client()
-    >>> stationxml_string = client.get_stations(
+    >>> inventory = client.get_stations(
     ...     latitude=-56.1, longitude=-26.7, maxradius=15)
-    >>> for line in stationxml_string.splitlines()[:6]:
-    ...     print line  # doctest: +ELLIPSIS
-    <?xml version="1.0" encoding="ISO-8859-1"?>
-    <BLANKLINE>
-    <FDSNStationXML ...>
-     <Source>IRIS-DMC</Source>
-     <Sender>IRIS-DMC</Sender>
-     <Module>IRIS WEB SERVICE: fdsnws-station | version: 1.0.7</Module>
+    >>> print inventory  # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
+    Inventory created at ...
+        Created by: IRIS WEB SERVICE: fdsnws-station | version: ...
+                http://service.iris.edu/fdsnws/station/1/query?latitude=...
+        Sending institution: IRIS-DMC (IRIS-DMC)
+        Contains:
+            Networks (3):
+                AI
+                II
+                SY
+            Stations (4):
+                AI.ORCD (ORCADAS, SOUTH ORKNEY ISLANDS)
+                II.HOPE (Hope Point, South Georgia Island)
+                SY.HOPE (HOPE synthetic)
+                SY.ORCD (ORCD synthetic)
+            Channels (0):
 
 Please see the documentation for each method for further information and
 examples.
 """
 
 from client import Client
+from header import URL_MAPPINGS
+
+# insert supported URL mapping list dynamically in docstring
+# we need an if clause because add_doctests() executes the file once again
+if r"%s" in Client.__init__.__doc__:
+    Client.__init__.im_func.func_doc = \
+        Client.__init__.__doc__ % str(sorted(URL_MAPPINGS.keys())).strip("[]")
 
 
 if __name__ == '__main__':

@@ -656,8 +656,7 @@ class StreamTestCase(unittest.TestCase):
         # Sorting without a list or a wrong item string should fail.
         self.assertRaises(TypeError, stream.sort, keys=1)
         self.assertRaises(TypeError, stream.sort, keys='sampling_rate')
-        self.assertRaises(TypeError, stream.sort, keys=['npts', 'starttime',
-                                                        'wrong_value'])
+        self.assertRaises(KeyError, stream.sort, keys=['npts', 'wrong_value'])
 
     def test_sortingTwice(self):
         """
@@ -2030,6 +2029,8 @@ class StreamTestCase(unittest.TestCase):
         kwargs = dict(seedresp={'filename': p, 'units': "DIS"},
                       pre_filt=(1, 2, 50, 60), waterlevel=60)
         st.simulate(**kwargs)
+        for tr in st:
+            tr.stats.processing.pop()
 
         for resp_string, stringio in p.getRESP():
             stringio.seek(0, 0)
@@ -2039,8 +2040,56 @@ class StreamTestCase(unittest.TestCase):
                     fh.write(stringio.read())
                 tr1 = read().select(component=component)[0]
                 tr1.simulate(**kwargs)
+                tr1.stats.processing.pop()
             tr2 = st.select(component=component)[0]
             self.assertEqual(tr1, tr2)
+
+    def test_select_empty_strings(self):
+        """
+        Test that select works with values that evaluate True when testing with
+        if (e.g. "", 0).
+        """
+        st = self.mseed_stream
+        st[0].stats.location = "00"
+        for tr in st[1:]:
+            tr.stats.network = ""
+            tr.stats.station = ""
+            tr.stats.channel = ""
+            tr.data = tr.data[0:0]
+        st2 = Stream(st[1:])
+        self.assertEqual(st.select(network=""), st2)
+        self.assertEqual(st.select(station=""), st2)
+        self.assertEqual(st.select(channel=""), st2)
+        self.assertEqual(st.select(npts=0), st2)
+
+    def test_select_short_channel_code(self):
+        """
+        Test that select by component only checks channel codes longer than two
+        characters.
+        """
+        st = Stream([Trace(), Trace(), Trace(), Trace(), Trace(), Trace()])
+        st[0].stats.channel = "EHZ"
+        st[1].stats.channel = "HZ"
+        st[2].stats.channel = "Z"
+        st[3].stats.channel = "E"
+        st[4].stats.channel = "N"
+        st[5].stats.channel = "EHN"
+        self.assertEqual(len(st.select(component="Z")), 1)
+        self.assertEqual(len(st.select(component="N")), 1)
+        self.assertEqual(len(st.select(component="E")), 0)
+
+    def test_remove_response(self):
+        """
+        Test remove_response() method against simulate() with equivalent
+        parameters to check response removal from Response object read from
+        StationXML against pure evalresp providing an external RESP file.
+        """
+        st1 = read()
+        st2 = read()
+        for tr in st1:
+            tr.remove_response(pre_filt=(0.1, 0.5, 30, 50))
+        st2.remove_response(pre_filt=(0.1, 0.5, 30, 50))
+        self.assertEqual(st1, st2)
 
 
 def suite():

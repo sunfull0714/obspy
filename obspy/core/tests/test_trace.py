@@ -6,7 +6,9 @@ from obspy import UTCDateTime, Trace, read, Stream
 from obspy.core import Stats
 from obspy.core.util.base import getMatplotlibVersion
 from obspy.core.util.decorator import skipIf
+from obspy.xseed import Parser
 import math
+import mock
 import numpy as np
 import unittest
 import warnings
@@ -522,17 +524,17 @@ class TraceTestCase(unittest.TestCase):
         tr1 = bigtrace
         tr2 = bigtrace_sort
         for method in [0, 1]:
-            #Random
+            # Random
             bigtrace = tr1.copy()
-            bigtrace = bigtrace.__add__(trace1, method=1)
-            bigtrace = bigtrace.__add__(trace3, method=1)
-            bigtrace = bigtrace.__add__(trace2, method=1)
+            bigtrace = bigtrace.__add__(trace1, method=method)
+            bigtrace = bigtrace.__add__(trace3, method=method)
+            bigtrace = bigtrace.__add__(trace2, method=method)
 
-            #Sorted
+            # Sorted
             bigtrace_sort = tr2.copy()
-            bigtrace_sort = bigtrace_sort.__add__(trace1, method=1)
-            bigtrace_sort = bigtrace_sort.__add__(trace2, method=1)
-            bigtrace_sort = bigtrace_sort.__add__(trace3, method=1)
+            bigtrace_sort = bigtrace_sort.__add__(trace1, method=method)
+            bigtrace_sort = bigtrace_sort.__add__(trace2, method=method)
+            bigtrace_sort = bigtrace_sort.__add__(trace3, method=method)
 
             for tr in (bigtrace, bigtrace_sort):
                 self.assertTrue(isinstance(tr, Trace))
@@ -1355,6 +1357,33 @@ class TraceTestCase(unittest.TestCase):
         self.assertFalse(isinstance(st[0].data, np.ma.masked_array))
         self.assertFalse(isinstance(st[1].data, np.ma.masked_array))
 
+    def test_simulate_evalresp(self):
+        """
+        Tests that trace.simulate calls evalresp with the correct network,
+        station, location and channel information.
+        """
+        tr = read()[0]
+
+        # Wrap in try/except as it of course will fail because the mocked
+        # function returns None.
+        try:
+            with mock.patch("obspy.signal.invsim.evalresp") as patch:
+                tr.simulate(seedresp={"filename": "RESP.dummy",
+                                      "units": "VEL",
+                                      "date": tr.stats.starttime})
+        except:
+            pass
+
+        self.assertEqual(patch.call_count, 1)
+        _, kwargs = patch.call_args
+
+        # Make sure that every item of the trace is passed to the evalresp
+        # function.
+        for key in ["network", "station", "location", "channel"]:
+            self.assertEqual(
+                kwargs[key if key != "location" else "locid"], tr.stats[key],
+                msg="'%s' did not get passed on to evalresp" % key)
+
     def test_issue540(self):
         """
         Trim with pad=True and given fill value should not return a masked
@@ -1478,6 +1507,37 @@ class TraceTestCase(unittest.TestCase):
 
             tr1 = tr.copy().taper(max_percentage=0.5, type='cosine')
             self.assertTrue(np.all(tr1.data[6:] < 1))
+
+    def test_issue_695(self):
+        x = np.zeros(12)
+        data = [x.reshape((12, 1)),
+                x.reshape((1, 12)),
+                x.reshape((2, 6)),
+                x.reshape((6, 2)),
+                x.reshape((2, 2, 3)),
+                x.reshape((1, 2, 2, 3)),
+                x[0][()],  # 0-dim array
+                ]
+        for d in data:
+            self.assertRaises(ValueError, Trace, data=d)
+
+    def test_remove_response(self):
+        """
+        Test remove_response() method against simulate() with equivalent
+        parameters to check response removal from Response object read from
+        StationXML against pure evalresp providing an external RESP file.
+        """
+        tr1 = read()[0]
+        tr2 = tr1.copy()
+        # deconvolve from dataless with simulate() via Parser from
+        # dataless/RESP
+        parser = Parser("/path/to/dataless.seed.BW_RJOB")
+        tr1.simulate(seedresp={"filename": parser, "units": "VEL"},
+                     water_level=60, pre_filt=(0.1, 0.5, 30, 50), sacsim=True,
+                     pitsasim=False)
+        # deconvolve from StationXML with remove_response()
+        tr2.remove_response(pre_filt=(0.1, 0.5, 30, 50))
+        np.testing.assert_array_almost_equal(tr1.data, tr2.data)
 
 
 def suite():

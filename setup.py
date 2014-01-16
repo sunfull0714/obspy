@@ -35,12 +35,14 @@ from numpy.distutils.ccompiler import get_default_compiler
 
 import glob
 import inspect
+import fnmatch
 import os
 import platform
 import sys
 
 
-# Directory of the current file in the (hopefully) most reliable way possible.
+# Directory of the current file in the (hopefully) most reliable way
+# possible, according to krischer
 SETUP_DIRECTORY = os.path.dirname(os.path.abspath(inspect.getfile(
     inspect.currentframe())))
 
@@ -73,8 +75,8 @@ KEYWORDS = [
     'processing', 'PQLX', 'Q', 'real time', 'realtime', 'RESP',
     'response file', 'RT', 'SAC', 'SEED', 'SeedLink', 'SEG-2', 'SEG Y',
     'SEISAN', 'SeisHub', 'Seismic Handler', 'seismology', 'seismogram',
-    'seismograms', 'signal', 'slink', 'spectrogram', 'taper', 'taup',
-    'travel time', 'trigger', 'VERCE', 'WAV', 'waveform', 'WaveServer',
+    'seismograms', 'signal', 'slink', 'spectrogram', 'StationXML', 'taper',
+    'taup', 'travel time', 'trigger', 'VERCE', 'WAV', 'waveform', 'WaveServer',
     'WaveServerV', 'WebDC', 'web service', 'Winston', 'XML-SEED', 'XSEED']
 INSTALL_REQUIRES = [
     'numpy>1.0.0',
@@ -85,11 +87,13 @@ INSTALL_REQUIRES = [
     'suds>=0.4.0']
 EXTRAS_REQUIRE = {
     'tests': ['flake8>=2',
-              'nose']}
+              'nose',
+              'mock']}
 ENTRY_POINTS = {
     'console_scripts': [
         'obspy-runtests = obspy.core.scripts.runtests:main',
         'obspy-reftek-rescue = obspy.core.scripts.reftekrescue:main',
+        'obspy-print = obspy.core.scripts.print:main',
         'obspy-indexer = obspy.db.scripts.indexer:main',
         'obspy-scan = obspy.imaging.scripts.scan:main',
         'obspy-plot = obspy.imaging.scripts.plot:main',
@@ -205,11 +209,28 @@ ENTRY_POINTS = {
     ],
     'obspy.plugin.event': [
         'QUAKEML = obspy.core.quakeml',
+        'MCHEDR = obspy.pde.mchedr',
+        'JSON = obspy.core.json.core',
     ],
     'obspy.plugin.event.QUAKEML': [
         'isFormat = obspy.core.quakeml:isQuakeML',
         'readFormat = obspy.core.quakeml:readQuakeML',
         'writeFormat = obspy.core.quakeml:writeQuakeML',
+    ],
+    'obspy.plugin.event.MCHEDR': [
+        'isFormat = obspy.pde.mchedr:isMchedr',
+        'readFormat = obspy.pde.mchedr:readMchedr',
+    ],
+    'obspy.plugin.event.JSON': [
+        'writeFormat = obspy.core.json.core:writeJSON',
+    ],
+    'obspy.plugin.inventory': [
+        'STATIONXML = obspy.station.stationxml',
+    ],
+    'obspy.plugin.inventory.STATIONXML': [
+        'isFormat = obspy.station.stationxml:is_StationXML',
+        'readFormat = obspy.station.stationxml:read_StationXML',
+        'writeFormat = obspy.station.stationxml:write_StationXML',
     ],
     'obspy.plugin.detrend': [
         'linear = scipy.signal:detrend',
@@ -313,10 +334,26 @@ if IS_MSVC:
     from distutils.command.build_ext import build_ext
     build_ext.get_export_symbols = _get_export_symbols
 
-    # add "x86_64-w64-mingw32-gfortran.exe" to executables
-    from numpy.distutils.fcompiler.gnu import Gnu95FCompiler
-    Gnu95FCompiler.possible_executables = ["x86_64-w64-mingw32-gfortran.exe",
-                                           'gfortran', 'f95']
+    # tau shared library has to be compiled with gfortran directly
+    def link(self, _target_desc, objects, output_filename,
+             *args, **kwargs):  # @UnusedVariable
+        # check if 'tau' library is linked
+        if 'tau' not in output_filename:
+            # otherwise just use the original link method
+            return self.original_link(_target_desc, objects, output_filename,
+                                      *args, **kwargs)
+        if '32' in platform.architecture()[0]:
+            taupargs = ["-m32"]
+        else:
+            taupargs = ["-m64"]
+        # ignoring all f2py objects
+        objects = objects[2:]
+        self.spawn(['gfortran.exe'] +
+                   ["-static-libgcc", "-static-libgfortran", "-shared"] +
+                   taupargs + objects + ["-o", output_filename])
+
+    MSVCCompiler.original_link = MSVCCompiler.link
+    MSVCCompiler.link = link
 
 
 # helper function for collecting export symbols from .def files
@@ -392,14 +429,16 @@ def configuration(parent_package="", top_path=None):
         kwargs['export_symbols'] = export_symbols(path, 'libevresp.def')
     config.add_extension(_get_lib_name("evresp"), files, **kwargs)
 
-    # Add obspy.taup source files.
-    obspy_taup_dir = os.path.join(SETUP_DIRECTORY, "obspy", "taup")
-    # Hack to get a architecture specific taup library filename.
+    # TAUP
+    path = os.path.join(SETUP_DIRECTORY, "obspy", "taup", "src")
     libname = _get_lib_name("tau")
-    # XXX: The build subdirectory is more difficult to determine if installed
+    files = glob.glob(os.path.join(path, "*.f"))
+    # compiler specific options
+    kwargs = {'libraries': []}
+    # XXX: The build subdirectory is difficult to determine if installed
     # via pypi or other means. I could not find a reliable way of doing it.
     new_interface_path = os.path.join("build", libname + os.extsep + "pyf")
-    interface_file = os.path.join(obspy_taup_dir, "src", "_libtau.pyf")
+    interface_file = os.path.join(path, "_libtau.pyf")
     with open(interface_file, "r") as open_file:
         interface_file = open_file.read()
     # In the original .pyf file the library is called _libtau.
@@ -408,15 +447,12 @@ def configuration(parent_package="", top_path=None):
         os.mkdir("build")
     with open(new_interface_path, "w") as open_file:
         open_file.write(interface_file)
-    # Proceed normally.
-    taup_files = glob.glob(os.path.join(obspy_taup_dir, "src", "*.f"))
-    taup_files.insert(0, new_interface_path)
-    libraries = []
+    files.insert(0, new_interface_path)
     # we do not need this when linking with gcc, only when linking with
     # gfortran the option -lgcov is required
     if os.environ.get('OBSPY_C_COVERAGE', ""):
-        libraries.append('gcov')
-    config.add_extension(libname, taup_files, libraries=libraries)
+        kwargs['libraries'].append('gcov')
+    config.add_extension(libname, files, **kwargs)
 
     add_data_files(config)
 
@@ -425,34 +461,22 @@ def configuration(parent_package="", top_path=None):
 
 def add_data_files(config):
     """
-    Function adding all necessary data files.
+    Recursively include all non python files
     """
-    # Add all test data files
-    for data_folder in glob.iglob(os.path.join(
-            SETUP_DIRECTORY, "obspy", "*", "tests", "data")):
-        path = os.path.join(*data_folder.split(os.path.sep)[-4:])
-        config.add_data_dir(path)
-    # Add all data files
-    for data_folder in glob.iglob(os.path.join(
-            SETUP_DIRECTORY, "obspy", "*", "data")):
-        path = os.path.join(*data_folder.split(os.path.sep)[-3:])
-        config.add_data_dir(path)
-    # Add all docs files
-    for data_folder in glob.iglob(os.path.join(
-            SETUP_DIRECTORY, "obspy", "*", "docs")):
-        path = os.path.join(*data_folder.split(os.path.sep)[-3:])
-        config.add_data_dir(path)
-    # image directories
-    config.add_data_dir(os.path.join("obspy", "core", "tests", "images"))
-    config.add_data_dir(os.path.join("obspy", "imaging", "tests", "images"))
-    config.add_data_dir(os.path.join("obspy", "segy", "tests", "images"))
-    # Add the taup models.
-    config.add_data_dir(os.path.join("obspy", "taup", "tables"))
-    # Adding the Flinn-Engdahl names files
-    config.add_data_dir(os.path.join("obspy", "core", "util", "geodetics",
-                                     "data"))
-    # Adding the version information file
-    config.add_data_files(os.path.join("obspy", "RELEASE-VERSION"))
+    # python files are included per default, we only include data files
+    # here
+    EXCLUDE_WILDCARDS = ['*.py', '*.pyc', '*.pyo', '*.pdf']
+    EXCLUDE_DIRS = ['src', '__pycache__']
+    common_prefix = SETUP_DIRECTORY + os.path.sep
+    for root, dirs, files in os.walk(os.path.join(SETUP_DIRECTORY, 'obspy')):
+        root = root.replace(common_prefix, '')
+        for name in files:
+            if any(fnmatch.fnmatch(name, w) for w in EXCLUDE_WILDCARDS):
+                continue
+            config.add_data_files(os.path.join(root, name))
+        for folder in EXCLUDE_DIRS:
+            if folder in dirs:
+                dirs.remove(folder)
 
 
 def setupPackage():
@@ -492,5 +516,27 @@ def setupPackage():
         ext_package='obspy.lib',
         configuration=configuration)
 
+
 if __name__ == '__main__':
+    # clean --all does not remove extensions automatically
+    if 'clean' in sys.argv and '--all' in sys.argv:
+        import shutil
+        # delete complete build directory
+        path = os.path.join(SETUP_DIRECTORY, 'build')
+        try:
+            shutil.rmtree(path)
+        except:
+            pass
+        # delete all shared libs from lib directory
+        path = os.path.join(SETUP_DIRECTORY, 'obspy', 'lib')
+        for filename in glob.glob(path + os.sep + '*.pyd'):
+            try:
+                os.remove(filename)
+            except:
+                pass
+        for filename in glob.glob(path + os.sep + '*.so'):
+            try:
+                os.remove(filename)
+            except:
+                pass
     setupPackage()

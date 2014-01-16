@@ -107,13 +107,13 @@ def checkForMatplotlibCompareImages():
     try:
         # trying to stay inside 80 char line
         import matplotlib.testing.compare as _compare
-        compare_images = _compare.compare_images  # NOQA
+        compare_images = _compare.compare_images  # NOQA @UnusedVariable
     except:
         return False
     # matplotlib's (< 1.2) compare_images() uses PIL internally
     if getMatplotlibVersion() < [1, 2, 0]:
         try:
-            import PIL  # NOQA
+            import PIL  # NOQA @UnusedImport
         except ImportError:
             return False
     return True
@@ -222,7 +222,12 @@ class ImageComparison(NamedTemporaryFile):
         environment variable is set.
         """
         try:
-            self.compare()
+            # only compare images if no exception occured in the with
+            # statement. this avoids masking previously occured exceptions (as
+            # an exception may occur in compare()). otherwise we only clean up
+            # and the exception gets re-raised at the end of __exit__.
+            if exc_type is None:
+                self.compare()
         finally:
             import matplotlib.pyplot as plt
             self.close()
@@ -233,13 +238,16 @@ class ImageComparison(NamedTemporaryFile):
             if os.path.exists(self.diff_filename):
                 os.remove(self.diff_filename)
 
-    def compare(self, reltol=1):
+    def compare(self, reltol=1):  # @UnusedVariable
         """
         Run :func:`matplotlib.testing.compare.compare_images` and raise an
         unittest.TestCase.failureException with the message string given by
         matplotlib if the comparison exceeds the allowed tolerance.
         """
         from matplotlib.testing.compare import compare_images
+        if os.stat(self.name).st_size == 0:
+            msg = "Empty output image file."
+            raise ImageComparisonException(msg)
         msg = compare_images(self.baseline_image, self.name, tol=self.tol)
         if msg:
             raise ImageComparisonException(msg)

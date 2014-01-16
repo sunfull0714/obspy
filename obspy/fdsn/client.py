@@ -12,7 +12,7 @@ FDSN Web service client for ObsPy.
 from io import BytesIO
 from lxml import etree
 import obspy
-from obspy import UTCDateTime
+from obspy import UTCDateTime, read_inventory
 from obspy.fdsn.wadl_parser import WADLParser
 from obspy.fdsn.header import DEFAULT_USER_AGENT, \
     URL_MAPPINGS, DEFAULT_PARAMETERS, PARAMETER_ALIASES, \
@@ -25,6 +25,9 @@ import urllib
 import urllib2
 import warnings
 import os
+
+
+DEFAULT_SERVICE_VERSIONS = {'dataselect': 1, 'station': 1, 'event': 1}
 
 
 class Client(object):
@@ -43,9 +46,27 @@ class Client(object):
     or client.help() for parameter description of
     all webservices.
 
-    For details see :meth:`__init__`.
+    :type base_url: str
+    :param base_url: Base URL of FDSN web service compatible server
+        (e.g. "http://service.iris.edu") or key string for recognized
+        server (one of %s)
+    :type major_versions: dict
+    :param major_versions: Allows to specify custom major version numbers
+        for individual services (e.g.
+        `major_versions={'station': 2, 'dataselect': 3}`), otherwise the
+        latest version at time of implementation will be used.
+    :type user: str
+    :param user: User name of HTTP Digest Authentication for access to
+        restricted data.
+    :type password: str
+    :param password: Password of HTTP Digest Authentication for access to
+        restricted data.
+    :type user_agent: str
+    :param user_agent: The user agent for all requests.
+    :type debug: bool
+    :param debug: Debug flag.
     """
-    def __init__(self, base_url="IRIS", major_version=1, user=None,
+    def __init__(self, base_url="IRIS", major_versions={}, user=None,
                  password=None, user_agent=DEFAULT_USER_AGENT, debug=False):
         """
         Initializes an FDSN Web Service client.
@@ -62,22 +83,7 @@ class Client(object):
         or client.help() for parameter description of
         all webservices.
 
-        :type base_url: str
-        :param base_url: Base URL of FDSN web service compatible server
-            (e.g. "http://service.iris.edu") or key string for recognized
-            server (currently "IRIS", "USGS", "RESIF", "NCEDC")
-        :type major_version: int
-        :param major_version: Major version number of server to access.
-        :type user: str
-        :param user: User name of HTTP Digest Authentication for access to
-            restricted data.
-        :type password: str
-        :param password: Password of HTTP Digest Authentication for access to
-            restricted data.
-        :type user_agent: str
-        :param user_agent: The user agent for all requests.
-        :type debug: bool
-        :param debug: Debug flag.
+        For details see :class:`Client`.
         """
         self.debug = debug
         self.user = user
@@ -100,7 +106,8 @@ class Client(object):
             urllib2.install_opener(opener)
 
         self.request_headers = {"User-Agent": user_agent}
-        self.major_version = major_version
+        self.major_versions = DEFAULT_SERVICE_VERSIONS
+        self.major_versions.update(major_versions)
 
         if self.debug is True:
             print "Base URL: %s" % self.base_url
@@ -256,100 +263,134 @@ class Client(object):
         Query the station service of the client.
 
         >>> client = Client("IRIS")
-        >>> stationxml_string = client.get_stations(
-        ...     latitude=-56.1, longitude=-26.7, maxradius=15)
-        >>> for line in stationxml_string.splitlines()[:6]:
-        ...     print line  # doctest: +ELLIPSIS
-        <?xml version="1.0" encoding="ISO-8859-1"?>
-        <BLANKLINE>
-        <FDSNStationXML ...>
-         <Source>IRIS-DMC</Source>
-         <Sender>IRIS-DMC</Sender>
-         <Module>IRIS WEB SERVICE: fdsnws-station | version: 1.0.7</Module>
-        >>> stationxml_string = client.get_stations(
+        >>> inventory = client.get_stations(latitude=-56.1, longitude=-26.7,
+        ...                                 maxradius=15)
+        >>> print inventory  # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
+        Inventory created at ...
+            Created by: IRIS WEB SERVICE: fdsnws-station | version: ...
+                    http://service.iris.edu/fdsnws/station/1/query?lat...
+            Sending institution: IRIS-DMC (IRIS-DMC)
+            Contains:
+                Networks (3):
+                    AI
+                    II
+                    SY
+                Stations (4):
+                    AI.ORCD (ORCADAS, SOUTH ORKNEY ISLANDS)
+                    II.HOPE (Hope Point, South Georgia Island)
+                    SY.HOPE (HOPE synthetic)
+                    SY.ORCD (ORCD synthetic)
+                Channels (0):
+        >>> inventory = client.get_stations(
         ...     starttime=UTCDateTime("2013-01-01"), network="IU",
         ...     sta="ANMO", level="channel")
-        >>> for line in stationxml_string.splitlines()[:6]:
-        ...     print line  # doctest: +ELLIPSIS
-        <?xml version="1.0" encoding="ISO-8859-1"?>
-        <BLANKLINE>
-        <FDSNStationXML ...>
-         <Source>IRIS-DMC</Source>
-         <Sender>IRIS-DMC</Sender>
-         <Module>IRIS WEB SERVICE: fdsnws-station | version: 1.0.7</Module>
+        >>> print inventory  # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
+        Inventory created at ...
+            Created by: IRIS WEB SERVICE: fdsnws-station | version: ...
+                    http://service.iris.edu/fdsnws/station/1/query?station=...
+            Sending institution: IRIS-DMC (IRIS-DMC)
+            Contains:
+                Networks (1):
+                    IU
+                Stations (1):
+                    IU.ANMO (Albuquerque, New Mexico, USA)
+                Channels (57):
+                    IU.ANMO.00.BH1, IU.ANMO.00.BH2, IU.ANMO.00.BHZ,
+                    IU.ANMO.00.LH1, IU.ANMO.00.LH2, IU.ANMO.00.LHZ,
+                    IU.ANMO.00.VH1, IU.ANMO.00.VH2, IU.ANMO.00.VHZ,
+                    IU.ANMO.00.VM1, IU.ANMO.00.VM2, IU.ANMO.00.VMZ,
+                    IU.ANMO.10.BH1, IU.ANMO.10.BH2, IU.ANMO.10.BHZ,
+                    IU.ANMO.10.EH1, IU.ANMO.10.EH2, IU.ANMO.10.EHZ,
+                    IU.ANMO.10.HH1, IU.ANMO.10.HH2, IU.ANMO.10.HHZ,
+                    IU.ANMO.10.LH1, IU.ANMO.10.LH2, IU.ANMO.10.LHZ,
+                    IU.ANMO.10.VH1, IU.ANMO.10.VH2, IU.ANMO.10.VHZ,
+                    IU.ANMO.10.VM1, IU.ANMO.10.VM2, IU.ANMO.10.VMZ,
+                    IU.ANMO.20.EN1, IU.ANMO.20.EN2, IU.ANMO.20.ENZ,
+                    IU.ANMO.20.HN1, IU.ANMO.20.HN1, IU.ANMO.20.HN2,
+                    IU.ANMO.20.HN2, IU.ANMO.20.HNZ, IU.ANMO.20.HNZ,
+                    IU.ANMO.20.LN1, IU.ANMO.20.LN1, IU.ANMO.20.LN2,
+                    IU.ANMO.20.LN2, IU.ANMO.20.LNZ, IU.ANMO.20.LNZ,
+                    IU.ANMO.30.LDO, IU.ANMO.31.LDO, IU.ANMO.35.LDO,
+                    IU.ANMO.40.LFZ, IU.ANMO.50.LDO, IU.ANMO.50.LIO,
+                    IU.ANMO.50.LKO, IU.ANMO.50.LRH, IU.ANMO.50.LRI,
+                    IU.ANMO.50.LWD, IU.ANMO.50.LWS, IU.ANMO.60.HDF
 
-        :type starttime:
+        :type starttime: :class:`~obspy.core.utcdatetime.UTCDateTime`
         :param starttime: Limit to metadata epochs starting on or after the
             specified start time.
-        :type endtime:
+        :type endtime: :class:`~obspy.core.utcdatetime.UTCDateTime`
         :param endtime: Limit to metadata epochs ending on or before the
             specified end time.
-        :type startbefore:
+        :type startbefore: :class:`~obspy.core.utcdatetime.UTCDateTime`
         :param startbefore: Limit to metadata epochs starting before specified
             time.
-        :type startafter:
+        :type startafter: :class:`~obspy.core.utcdatetime.UTCDateTime`
         :param startafter: Limit to metadata epochs starting after specified
             time.
-        :type endbefore:
+        :type endbefore: :class:`~obspy.core.utcdatetime.UTCDateTime`
         :param endbefore: Limit to metadata epochs ending before specified
             time.
-        :type endafter:
+        :type endafter: :class:`~obspy.core.utcdatetime.UTCDateTime`
         :param endafter: Limit to metadata epochs ending after specified time.
-        :type network:
+        :type network: str
         :param network: Select one or more network codes. Can be SEED network
             codes or data center defined codes. Multiple codes are
             comma-separated.
-        :type station:
+        :type station: str
         :param station: Select one or more SEED station codes. Multiple codes
             are comma-separated.
-        :type location:
+        :type location: str
         :param location: Select one or more SEED location identifiers. Multiple
             identifiers are comma-separated. As a special case “--“ (two
             dashes) will be translated to a string of two space characters to
             match blank location IDs.
-        :type channel:
+        :type channel: str
         :param channel: Select one or more SEED channel codes. Multiple codes
             are comma-separated.
-        :type minlatitude:
+        :type minlatitude: float
         :param minlatitude: Limit to stations with a latitude larger than the
             specified minimum.
-        :type maxlatitude:
+        :type maxlatitude: float
         :param maxlatitude: Limit to stations with a latitude smaller than the
             specified maximum.
-        :type minlongitude:
+        :type minlongitude: float
         :param minlongitude: Limit to stations with a longitude larger than the
             specified minimum.
-        :type maxlongitude:
+        :type maxlongitude: float
         :param maxlongitude: Limit to stations with a longitude smaller than
             the specified maximum.
-        :type latitude:
+        :type latitude: float
         :param latitude: Specify the latitude to be used for a radius search.
-        :type longitude:
+        :type longitude: float
         :param longitude: Specify the longitude to the used for a radius
             search.
-        :type minradius:
+        :type minradius: float
         :param minradius: Limit results to stations within the specified
             minimum number of degrees from the geographic point defined by the
                     latitude and longitude parameters.
-        :type maxradius:
+        :type maxradius: float
         :param maxradius: Limit results to stations within the specified
             maximum number of degrees from the geographic point defined by the
             latitude and longitude parameters.
-        :type level:
-        :param level: Specify the level of detail for the results.
-        :type includerestricted:
+        :type level: str
+        :param level: Specify the level of detail for the results ("network",
+            "station", "channel", "response"), e.g. specify "response" to get
+            full information including instrument response for each channel.
+        :type includerestricted: bool
         :param includerestricted: Specify if results should include information
             for restricted stations.
-        :type includeavailability:
+        :type includeavailability: bool
         :param includeavailability: Specify if results should include
             information about time series data availability.
-        :type updatedafter:
+        :type updatedafter: :class:`~obspy.core.utcdatetime.UTCDateTime`
         :param updatedafter: Limit to metadata updated after specified date;
             updates are data center specific.
         :type filename: str or open file-like object
         :param filename: If given, the downloaded data will be saved there
             instead of being parse to an ObsPy object. Thus it will contain the
             raw data from the webservices.
+        :rtype: :class:`~obspy.station.inventory.Inventory`
+        :returns: Inventory with requested station information.
 
         Any additional keyword arguments will be passed to the webservice as
         additional arguments. If you pass one of the default parameters and the
@@ -373,31 +414,31 @@ class Client(object):
             self._write_to_file_object(filename, data_stream)
             data_stream.close()
         else:
-            # XXX: Replace with StationXML reader once ready!
-            station = data_stream.read()
+            inventory = read_inventory(data_stream, format="STATIONXML")
             data_stream.close()
-            return station
+            return inventory
 
-    def get_waveform(self, network, station, location, channel, starttime,
-                     endtime, quality=None, minimumlength=None,
-                     longestonly=None, filename=None, **kwargs):
+    def get_waveforms(self, network, station, location, channel, starttime,
+                      endtime, quality=None, minimumlength=None,
+                      longestonly=None, filename=None, attach_response=False,
+                      **kwargs):
         """
         Query the dataselect service of the client.
 
         >>> client = Client("IRIS")
         >>> t1 = UTCDateTime("2010-02-27T06:30:00.000")
         >>> t2 = t1 + 1
-        >>> st = client.get_waveform("IU", "ANMO", "00", "BHZ", t1, t2)
+        >>> st = client.get_waveforms("IU", "ANMO", "00", "BHZ", t1, t2)
         >>> print st  # doctest: +ELLIPSIS
         1 Trace(s) in Stream:
         IU.ANMO.00.BHZ | 2010-02-27T06:30:00... | 20.0 Hz, 20 samples
-        >>> st = client.get_waveform("IU", "ANMO", "00", "BH*", t1, t2)
+        >>> st = client.get_waveforms("IU", "ANMO", "00", "BH*", t1, t2)
         >>> print st  # doctest: +ELLIPSIS
         3 Trace(s) in Stream:
         IU.ANMO.00.BH1 | 2010-02-27T06:30:00... | 20.0 Hz, 20 samples
         IU.ANMO.00.BH2 | 2010-02-27T06:30:00... | 20.0 Hz, 20 samples
         IU.ANMO.00.BHZ | 2010-02-27T06:30:00... | 20.0 Hz, 20 samples
-        >>> st = client.get_waveform("IU", "A*", "*", "BHZ", t1, t2)
+        >>> st = client.get_waveforms("IU", "A*", "*", "BHZ", t1, t2)
         >>> print st  # doctest: +ELLIPSIS
         7 Trace(s) in Stream:
         IU.ADK.00.BHZ  | 2010-02-27T06:30:00... | 20.0 Hz, 20 samples
@@ -407,13 +448,34 @@ class Client(object):
         IU.ANMO.00.BHZ | 2010-02-27T06:30:00... | 20.0 Hz, 20 samples
         IU.ANMO.10.BHZ | 2010-02-27T06:30:00... | 40.0 Hz, 40 samples
         IU.ANTO.00.BHZ | 2010-02-27T06:30:00... | 20.0 Hz, 20 samples
-        >>> st = client.get_waveform("IU", "A??", "?0", "BHZ", t1, t2)
+        >>> st = client.get_waveforms("IU", "A??", "?0", "BHZ", t1, t2)
         >>> print st  # doctest: +ELLIPSIS
         4 Trace(s) in Stream:
         IU.ADK.00.BHZ | 2010-02-27T06:30:00... | 20.0 Hz, 20 samples
         IU.ADK.10.BHZ | 2010-02-27T06:30:00... | 40.0 Hz, 40 samples
         IU.AFI.00.BHZ | 2010-02-27T06:30:00... | 20.0 Hz, 20 samples
         IU.AFI.10.BHZ | 2010-02-27T06:30:00... | 40.0 Hz, 40 samples
+        >>> t = UTCDateTime("2012-12-14T10:36:01.6Z")
+        >>> st = client.get_waveforms("TA", "?42A", "*", "BHZ", t+300, t+400,
+        ...                           attach_response=True)
+        >>> st.remove_response(output="VEL") # doctest: +ELLIPSIS
+        <obspy.core.stream.Stream object at ...>
+        >>> st.plot()
+
+        .. plot::
+
+            from obspy.fdsn import Client
+            client = Client("IRIS")
+            st = client.get_waveforms("TA", "?42A", "*", "BHZ", t+300, t+400,
+                                      attach_response=True)
+            st.remove_response(output="VEL")
+            st.plot()
+
+        .. note::
+
+            Use `attach_response=True` to automatically add response
+            information to each trace. This can be used to remove response
+            using :meth:`~obspy.core.stream.Stream.remove_response`.
 
         :type network: str
         :param network: Select one or more network codes. Can be SEED network
@@ -447,6 +509,12 @@ class Client(object):
         :param filename: If given, the downloaded data will be saved there
             instead of being parse to an ObsPy object. Thus it will contain the
             raw data from the webservices.
+        :type attach_response: bool
+        :param attach_response: Specify whether the station web service should
+            be used to automatically attach response information to each trace
+            in the result set. A warning will be shown if a response can not be
+            found for a channel. Does nothing if output to a file was
+            specified.
 
         Any additional keyword arguments will be passed to the webservice as
         additional arguments. If you pass one of the default parameters and the
@@ -476,10 +544,28 @@ class Client(object):
         else:
             st = obspy.read(data_stream, format="MSEED")
             data_stream.close()
+            if attach_response:
+                self._attach_responses(st)
             return st
 
-    def get_waveform_bulk(self, bulk, quality=None, minimumlength=None,
-                          longestonly=None, filename=None, **kwargs):
+    def _attach_responses(self, st):
+        """
+        Helper method to fetch response via get_stations() and attach it to
+        each trace in stream.
+        """
+        netstas = set([tuple(tr.id.split(".")[:2]) for tr in st])
+        inventories = []
+        for net, sta in netstas:
+            try:
+                inventories.append(self.get_stations(network=net, station=sta,
+                                                     level="response"))
+            except Exception as e:
+                warnings.warn(str(e))
+        st.attach_response(inventories)
+
+    def get_waveforms_bulk(self, bulk, quality=None, minimumlength=None,
+                           longestonly=None, filename=None,
+                           attach_response=False, **kwargs):
         r"""
         Query the dataselect service of the client. Bulk request.
 
@@ -510,7 +596,7 @@ class Client(object):
         >>> bulk = [("IU", "ANMO", "*", "BHZ", t1, t2),
         ...         ("IU", "AFI", "1?", "BHE", t1, t3),
         ...         ("GR", "GRA1", "*", "BH*", t2, t3)]
-        >>> st = client.get_waveform_bulk(bulk)
+        >>> st = client.get_waveforms_bulk(bulk)
         >>> print st  # doctest: +ELLIPSIS
         5 Trace(s) in Stream:
         GR.GRA1..BHE   | 2010-02-27T06:30:01... | 20.0 Hz, 40 samples
@@ -523,7 +609,7 @@ class Client(object):
         ...        'IU ANMO * BHZ 2010-02-27 2010-02-27T00:00:02\n' + \
         ...        'IU AFI 1? BHE 2010-02-27 2010-02-27T00:00:04\n' + \
         ...        'GR GRA1 * BH? 2010-02-27 2010-02-27T00:00:02\n'
-        >>> st = client.get_waveform_bulk(bulk)
+        >>> st = client.get_waveforms_bulk(bulk)
         >>> print st  # doctest: +ELLIPSIS
         5 Trace(s) in Stream:
         GR.GRA1..BHE   | 2010-02-27T00:00:00... | 20.0 Hz, 40 samples
@@ -531,7 +617,8 @@ class Client(object):
         GR.GRA1..BHZ   | 2010-02-27T00:00:00... | 20.0 Hz, 40 samples
         IU.ANMO.00.BHZ | 2010-02-27T00:00:00... | 20.0 Hz, 40 samples
         IU.ANMO.10.BHZ | 2010-02-27T00:00:00... | 40.0 Hz, 80 samples
-        >>> st = client.get_waveform_bulk("/tmp/request.txt")  # doctest: #SKIP
+        >>> st = client.get_waveforms_bulk("/tmp/request.txt") \
+        ...     # doctest: +SKIP
         >>> print st  # doctest: +SKIP
         5 Trace(s) in Stream:
         GR.GRA1..BHE   | 2010-02-27T00:00:00... | 20.0 Hz, 40 samples
@@ -539,6 +626,36 @@ class Client(object):
         GR.GRA1..BHZ   | 2010-02-27T00:00:00... | 20.0 Hz, 40 samples
         IU.ANMO.00.BHZ | 2010-02-27T00:00:00... | 20.0 Hz, 40 samples
         IU.ANMO.10.BHZ | 2010-02-27T00:00:00... | 40.0 Hz, 80 samples
+        >>> t = UTCDateTime("2012-12-14T10:36:01.6Z")
+        >>> t1 = t + 300
+        >>> t2 = t + 400
+        >>> bulk = [("TA", "S42A", "*", "BHZ", t1, t2),
+        ...         ("TA", "W42A", "*", "BHZ", t1, t2),
+        ...         ("TA", "Z42A", "*", "BHZ", t1, t2)]
+        >>> st = client.get_waveforms_bulk(bulk, attach_response=True)
+        >>> st.remove_response(output="VEL") # doctest: +ELLIPSIS
+        <obspy.core.stream.Stream object at ...>
+        >>> st.plot()
+
+        .. plot::
+
+            from obspy.fdsn import Client
+            client = Client("IRIS")
+            t = UTCDateTime("2012-12-14T10:36:01.6Z")
+            t1 = t + 300
+            t2 = t + 400
+            bulk = [("TA", "S42A", "*", "BHZ", t1, t2),
+                    ("TA", "W42A", "*", "BHZ", t1, t2),
+                    ("TA", "Z42A", "*", "BHZ", t1, t2)]
+            st = client.get_waveforms_bulk(bulk, attach_response=True)
+            st.remove_response(output="VEL")
+            st.plot()
+
+        .. note::
+
+            Use `attach_response=True` to automatically add response
+            information to each trace. This can be used to remove response
+            using :meth:`~obspy.core.stream.Stream.remove_response`.
 
         :type bulk: str, file-like object or list of lists
         :param bulk: Information about the requested data. See above for
@@ -558,6 +675,12 @@ class Client(object):
         :param filename: If given, the downloaded data will be saved there
             instead of being parse to an ObsPy object. Thus it will contain the
             raw data from the webservices.
+        :type attach_response: bool
+        :param attach_response: Specify whether the station web service should
+            be used to automatically attach response information to each trace
+            in the result set. A warning will be shown if a response can not be
+            found for a channel. Does nothing if output to a file was
+            specified.
 
         Any additional keyword arguments will be passed to the webservice as
         additional arguments. If you pass one of the default parameters and the
@@ -614,6 +737,8 @@ class Client(object):
         else:
             st = obspy.read(data_stream, format="MSEED")
             data_stream.close()
+            if attach_response:
+                self._attach_responses(st)
             return st
 
     def _write_to_file_object(self, filename_or_object, data_stream):
@@ -830,7 +955,7 @@ class Client(object):
             raise FDSNException("Service temporarily unavailable")
         return data
 
-    def _build_url(self, resource_type, service, parameters={}):
+    def _build_url(self, service, resource_type, parameters={}):
         """
         Builds the correct URL.
 
@@ -839,10 +964,10 @@ class Client(object):
         """
         # authenticated dataselect queries have different target URL
         if self.user is not None:
-            if resource_type == "dataselect" and service == "query":
-                service = "queryauth"
-        return build_url(self.base_url, self.major_version, resource_type,
-                         service, parameters)
+            if service == "dataselect" and resource_type == "query":
+                resource_type = "queryauth"
+        return build_url(self.base_url, service, self.major_versions[service],
+                         resource_type, parameters)
 
     def _discover_services(self):
         """
@@ -851,13 +976,10 @@ class Client(object):
         They are discovered by downloading the corresponding WADL files. If a
         WADL does not exist, the services are assumed to be non-existent.
         """
-        dataselect_url = self._build_url("dataselect", "application.wadl")
-        station_url = self._build_url("station", "application.wadl")
-        event_url = self._build_url("event", "application.wadl")
-        catalog_url = self._build_url("event", "catalogs")
-        contributor_url = self._build_url("event", "contributors")
-        urls = (dataselect_url, station_url, event_url, catalog_url,
-                contributor_url)
+        urls = [self._build_url(service, "application.wadl")
+                for service in ("dataselect", "event", "station")]
+        urls.append(self._build_url("event", "catalogs"))
+        urls.append(self._build_url("event", "contributors"))
 
         # Request all in parallel.
         wadl_queue = Queue.Queue()
@@ -978,23 +1100,23 @@ def convert_to_string(value):
         return str(value).replace("Z", "")
 
 
-def build_url(base_url, major_version, service, resource_type, parameters={}):
+def build_url(base_url, service, major_version, resource_type, parameters={}):
     """
     URL builder for the FDSN webservices.
 
     Built as a separate function to enhance testability.
 
-    >>> build_url("http://service.iris.edu", 1, "dataselect", \
+    >>> build_url("http://service.iris.edu", "dataselect", 1, \
                   "application.wadl")
     'http://service.iris.edu/fdsnws/dataselect/1/application.wadl'
 
-    >>> build_url("http://service.iris.edu", 1, "dataselect", \
+    >>> build_url("http://service.iris.edu", "dataselect", 1, \
                   "query", {"cha": "EHE"})
     'http://service.iris.edu/fdsnws/dataselect/1/query?cha=EHE'
     """
     # Only allow certain resource types.
     if service not in ["dataselect", "event", "station"]:
-        msg = "Resource type '%s' not allowed. Allowed resource types: \n%s" %\
+        msg = "Resource type '%s' not allowed. Allowed types: \n%s" % \
             (service, ",".join(("dataselect", "event", "station")))
         raise ValueError(msg)
 

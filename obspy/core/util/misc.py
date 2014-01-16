@@ -8,11 +8,14 @@ Various additional utilities for ObsPy.
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+from contextlib import contextmanager
 import os
+import sys
 import inspect
 from subprocess import Popen, PIPE
 import warnings
 import itertools
+import tempfile
 import numpy as np
 
 
@@ -70,7 +73,7 @@ def guessDelta(channel):
     return 0
 
 
-def scoreatpercentile(a, per, limit=(), issorted=True):
+def scoreatpercentile(values, per, limit=(), issorted=True):
     """
     Calculates the score at the given per percentile of the sequence a.
 
@@ -93,24 +96,23 @@ def scoreatpercentile(a, per, limit=(), issorted=True):
     >>> scoreatpercentile(a, 75)
     3.25
 
-    >>> a = [6, 47, 49, 15, 42, 41, 7, 39, 43, 40, 36]
-    >>> scoreatpercentile(a, 25)
+    >>> a = [6, 47, 49, 15, 42, 41, 7, 255, 39, 43, 40, 36, 500]
+    >>> scoreatpercentile(a, 25, limit=(0, 100))
     25.5
-    >>> scoreatpercentile(a, 50)
+    >>> scoreatpercentile(a, 50, limit=(0, 100))
     40
-    >>> scoreatpercentile(a, 75)
+    >>> scoreatpercentile(a, 75, limit=(0, 100))
     42.5
 
     This function is taken from :func:`scipy.stats.scoreatpercentile`.
 
     Copyright (c) Gary Strangman
     """
+    if limit:
+        values = [v for v in values if limit[0] < v < limit[1]]
+
     if issorted:
-        values = sorted(a)
-        if limit:
-            values = values[(limit[0] < a) & (a < limit[1])]
-    else:
-        values = a
+        values = sorted(values)
 
     def _interpolate(a, b, fraction):
         return a + (b - a) * fraction
@@ -354,6 +356,89 @@ def wrap_long_string(string, line_length=79, prefix="",
         text_width = text_width_for_prefix(line_length, prefix)
     lines.append(prefix + string)
     return "\n".join(lines)
+
+
+@contextmanager
+def CatchOutput():
+    """
+    A context manager that catches stdout/stderr for its scope.
+
+    Always use with "with" statement. Does nothing otherwise.
+
+    Roughly based on: http://stackoverflow.com/a/17954769
+
+    This variant does not leak file descriptors.
+
+    >>> with CatchOutput() as out:  # doctest: +SKIP
+    ...    os.system('echo "mystdout"')
+    ...    os.system('echo "mystderr" >&2')
+    >>> print out.stdout  # doctest: +SKIP
+    mystdout
+    >>> print out.stderr  # doctest: +SKIP
+    mystderr
+    """
+    stdout_file, stdout_filename = tempfile.mkstemp(prefix="obspy-")
+    stderr_file, stderr_filename = tempfile.mkstemp(prefix="obspy-")
+
+    try:
+        fd_stdout = sys.stdout.fileno()
+        fd_stderr = sys.stderr.fileno()
+
+        # Dummy class to transport the output.
+        class Output():
+            pass
+        out = Output()
+        out.stdout = ""
+        out.stderr = ""
+
+        with os.fdopen(os.dup(sys.stdout.fileno()), "w") as old_stdout:
+            with os.fdopen(os.dup(sys.stderr.fileno()), "w") as old_stderr:
+                sys.stdout.flush()
+                sys.stderr.flush()
+
+                os.dup2(stdout_file, fd_stdout)
+                os.dup2(stderr_file, fd_stderr)
+
+                os.close(stdout_file)
+                os.close(stderr_file)
+
+                try:
+                    yield out
+                finally:
+                    sys.stdout.flush()
+                    sys.stderr.flush()
+                    os.fsync(sys.stdout.fileno())
+                    os.fsync(sys.stderr.fileno())
+                    sys.stdout = sys.__stdout__
+                    sys.stderr = sys.__stderr__
+                    sys.stdout.flush()
+                    sys.stderr.flush()
+                    os.dup2(old_stdout.fileno(), sys.stdout.fileno())
+                    os.dup2(old_stderr.fileno(), sys.stderr.fileno())
+
+                    with open(stdout_filename, "r") as fh:
+                        out.stdout = fh.read()
+                    with open(stderr_filename, "r") as fh:
+                        out.stderr = fh.read()
+
+    finally:
+        # Make sure to always close and remove the temporary files.
+        try:
+            os.close(stdout_file)
+        except:
+            pass
+        try:
+            os.close(stderr_file)
+        except:
+            pass
+        try:
+            os.remove(stdout_filename)
+        except OSError:
+            pass
+        try:
+            os.remove(stderr_filename)
+        except OSError:
+            pass
 
 
 if __name__ == '__main__':

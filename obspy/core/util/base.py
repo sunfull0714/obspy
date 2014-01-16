@@ -23,7 +23,7 @@ import tempfile
 # defining ObsPy modules currently used by runtests and the path function
 DEFAULT_MODULES = ['core', 'gse2', 'mseed', 'sac', 'wav', 'signal', 'imaging',
                    'xseed', 'seisan', 'sh', 'segy', 'taup', 'seg2', 'db',
-                   'realtime', 'datamark', 'css', 'y']
+                   'realtime', 'datamark', 'css', 'y', 'pde', 'station']
 NETWORK_MODULES = ['arclink', 'seishub', 'iris', 'neries', 'earthworm',
                    'seedlink', 'neic', 'fdsn']
 ALL_MODULES = DEFAULT_MODULES + NETWORK_MODULES
@@ -32,6 +32,7 @@ ALL_MODULES = DEFAULT_MODULES + NETWORK_MODULES
 WAVEFORM_PREFERRED_ORDER = ['MSEED', 'SAC', 'GSE2', 'SEISAN', 'SACXY', 'GSE1',
                             'Q', 'SH_ASC', 'SLIST', 'TSPAIR', 'Y', 'SEGY',
                             'SU', 'SEG2', 'WAV', 'PICKLE', 'DATAMARK', 'CSS']
+EVENT_PREFERRED_ORDER = ['QUAKEML']
 
 _sys_is_le = sys.byteorder == 'little'
 NATIVE_BYTEORDER = _sys_is_le and '<' or '>'
@@ -225,7 +226,11 @@ ENTRY_POINTS = {
     'waveform_write': _getOrderedEntryPoints(
         'obspy.plugin.waveform', 'writeFormat', WAVEFORM_PREFERRED_ORDER),
     'event': _getEntryPoints('obspy.plugin.event', 'readFormat'),
+    'event_write': _getEntryPoints('obspy.plugin.event', 'writeFormat'),
     'taper': _getEntryPoints('obspy.plugin.taper'),
+    'inventory': _getEntryPoints('obspy.plugin.inventory', 'readFormat'),
+    'inventory_write': _getEntryPoints('obspy.plugin.inventory',
+                                       'writeFormat'),
 }
 
 
@@ -356,6 +361,7 @@ def make_format_plugin_table(group="waveform", method="read", numspaces=4,
     ======= ================= =======================================
         Format  Required Module   _`Linked Function Call`
         ======= ================= =======================================
+        JSON    :mod:`obspy.core` :func:`obspy.core.json.core.writeJSON`
         QUAKEML :mod:`obspy.core` :func:`obspy.core.quakeml.writeQuakeML`
         ======= ================= =======================================
 
@@ -405,6 +411,17 @@ def make_format_plugin_table(group="waveform", method="read", numspaces=4,
     if unindent_first_line:
         ret = ret[numspaces:]
     return ret
+
+
+class ComparingObject(object):
+    """
+    Simple base class that implements == and != based on self.__dict__
+    """
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
 
 if __name__ == '__main__':

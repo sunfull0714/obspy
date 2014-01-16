@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 #-------------------------------------------------------------------
 # Filename: invsim.py
 #  Purpose: Python Module for Instrument Correction (Seismology)
@@ -20,7 +21,6 @@ to m/s.
 """
 
 from obspy.core.util.base import NamedTemporaryFile
-from obspy.core.util.decorator import deprecated_keywords
 from obspy.signal.detrend import simple as simpleDetrend
 from obspy.signal.headers import clibevresp
 import ctypes as C
@@ -139,7 +139,14 @@ def cosTaper(npts, p=0.1, freqs=None, flimit=None, halfcosine=True,
     return cos_win
 
 
-def c_sac_taper(npts, p=0.1, freqs=None, flimit=None, pitsa=False):
+def c_sac_taper(freqs, flimit):
+    """
+    Generate frequency domain taper similar to sac.
+
+    :param freqs: frequency vector to use
+    :param flimit: sequence containing the 4  frequency limits
+    :returns: taper
+    """
     twopi = 6.283185307179586
     dblepi = 0.5 * twopi
     fl1, fl2, fl3, fl4 = flimit
@@ -157,7 +164,6 @@ def c_sac_taper(npts, p=0.1, freqs=None, flimit=None, pitsa=False):
     return np.array(taper)
 
 
-@deprecated_keywords({'pitsa': None})
 def evalresp(t_samp, nfft, filename, date, station='*', channel='*',
              network='*', locid='*', units="VEL", freq=False,
              debug=False):
@@ -252,7 +258,6 @@ def cornFreq2Paz(fc, damp=0.707):
     return {'poles': poles, 'zeros': [0j, 0j], 'gain': 1, 'sensitivity': 1.0}
 
 
-@deprecated_keywords({'pitsa': None})
 def pazToFreqResp(poles, zeros, scale_fac, t_samp, nfft, freq=False):
     """
     Convert Poles and Zeros (PAZ) to frequency response. The output
@@ -476,7 +481,11 @@ def seisSim(data, samp_rate, paz_remove=None, paz_simulate=None,
     if seedresp:
         freq_response, freqs = evalresp(delta, nfft, seedresp['filename'],
                                         seedresp['date'],
-                                        units=seedresp['units'], freq=True)
+                                        units=seedresp['units'], freq=True,
+                                        network=seedresp['network'],
+                                        station=seedresp['station'],
+                                        locid=seedresp['location'],
+                                        channel=seedresp['channel'])
         if not remove_sensitivity:
             msg = "remove_sensitivity is set to False, but since seedresp " + \
                   "is selected the overall sensitivity will be corrected " + \
@@ -487,8 +496,7 @@ def seisSim(data, samp_rate, paz_remove=None, paz_simulate=None,
             # make cosine taper
             fl1, fl2, fl3, fl4 = pre_filt
             if sacsim:
-                cos_win = c_sac_taper(freqs.size, freqs=freqs,
-                                      flimit=(fl1, fl2, fl3, fl4))
+                cos_win = c_sac_taper(freqs, flimit=(fl1, fl2, fl3, fl4))
             else:
                 cos_win = cosTaper(freqs.size, freqs=freqs,
                                    flimit=(fl1, fl2, fl3, fl4))

@@ -6,6 +6,7 @@ The InvSim test suite.
 
 from obspy import Trace, UTCDateTime, read
 from obspy.core.util.base import NamedTemporaryFile
+from obspy.core.util.misc import CatchOutput
 from obspy.sac import attach_paz
 from obspy.signal.invsim import seisSim, estimateMagnitude, evalresp
 from obspy.signal.invsim import cosTaper
@@ -258,7 +259,9 @@ class InvSimTestCase(unittest.TestCase):
         tr = read(rawf)[0]
         trtest = read(evalrespf)[0]
         date = UTCDateTime(2003, 11, 1, 0, 0, 0)
-        seedresp = {'filename': respf, 'date': date, 'units': 'VEL'}
+        seedresp = {'filename': respf, 'date': date, 'units': 'VEL',
+                    'network': 'NZ', 'station': 'CRLZ', 'location': '10',
+                    'channel': 'HHZ'}
         tr.data = seisSim(tr.data, tr.stats.sampling_rate, paz_remove=None,
                           pre_filt=(fl1, fl2, fl3, fl4),
                           seedresp=seedresp, taper_fraction=0.1,
@@ -296,8 +299,7 @@ class InvSimTestCase(unittest.TestCase):
         #fl4 = 35.0
         #npts = freqs.size
         #tap = cosTaper(freqs.size, freqs=freqs, flimit=(fl1, fl2, fl3, fl4))
-        #tap2 = c_sac_taper(freqs.size, freqs=freqs,
-        #                   flimit=(fl1, fl2, fl3, fl4))
+        #tap2 = c_sac_taper(freqs, flimit=(fl1, fl2, fl3, fl4))
         #import matplotlib.pyplot as plt
         #plt.plot(tap,'b')
         #plt.plot(tap2,'g--')
@@ -352,7 +354,9 @@ class InvSimTestCase(unittest.TestCase):
         tr2 = read(rawf)[0]
 
         date = UTCDateTime(2003, 11, 1, 0, 0, 0)
-        seedresp = {'filename': respf, 'date': date, 'units': 'VEL'}
+        seedresp = {'filename': respf, 'date': date, 'units': 'VEL',
+                    'network': 'NZ', 'station': 'CRLZ', 'location': '10',
+                    'channel': 'HHZ'}
         tr1.data = seisSim(tr1.data, tr1.stats.sampling_rate,
                            seedresp=seedresp)
 
@@ -363,6 +367,36 @@ class InvSimTestCase(unittest.TestCase):
                            seedresp=seedresp)
 
         self.assertEqual(tr1, tr2)
+
+    def test_evalresp_seed_identifiers_work(self):
+        """
+        Asserts that the network, station, location and channel identifiers can
+        be used to select difference responses.
+        """
+        kwargs = {"filename": os.path.join(self.path, "RESP.OB.AAA._.BH_"),
+                  "t_samp": 0.1, "nfft": 1024, "units": "VEL",
+                  "date": UTCDateTime(2013, 1, 1), "network": "OP",
+                  "station": "AAA", "locid": "", "freq": False, "debug": False}
+
+        # Get the response for the first channel
+        kwargs["channel"] = "BHE"
+        response_1 = evalresp(**kwargs)
+
+        # Get the second one. Should be different.
+        kwargs["channel"] = "BHN"
+        response_2 = evalresp(**kwargs)
+
+        # The only thing that changed was the channel code. This should change
+        # the response.
+        rel_diff = np.abs(response_2 - response_1).ptp() / \
+            max(np.abs(response_1).ptp(), np.abs(response_2).ptp())
+        self.assertTrue(rel_diff > 1E-3)
+
+        # The RESP file only contains two channels.
+        kwargs["channel"] = "BHZ"
+        with CatchOutput() as out:
+            self.assertRaises(ValueError, evalresp, **kwargs)
+        self.assertTrue("no response found for" in out.stderr.lower())
 
 
 def suite():

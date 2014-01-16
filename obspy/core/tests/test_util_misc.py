@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
+from ctypes import CDLL
+from ctypes.util import find_library
+from obspy.core.util.misc import wrap_long_string, CatchOutput
+import os
+import platform
+import sys
 import unittest
-from obspy.core.util.misc import wrap_long_string
 
 
 class UtilMiscTestCase(unittest.TestCase):
@@ -40,6 +45,26 @@ class UtilMiscTestCase(unittest.TestCase):
                     "\t\td_on_the_unique origin\n"
                     "\t\tID numbers assigned by\n"
                     "\t\tthe IRIS DMC")
+
+    def test_CatchOutput(self):
+        """
+        """
+        libc = CDLL(find_library("c"))
+
+        with CatchOutput() as out:
+            os.system('echo "abc"')
+            libc.printf("def\n")
+            print "ghi"
+            print >> sys.stdout, "jkl"
+            os.system('echo "123" 1>&2')
+            print >> sys.stderr, "456"
+
+        if platform.system() == "Windows":
+            self.assertEqual(out.stdout, '"abc"\ndef\nghi\njkl\n')
+            self.assertEqual(out.stderr, '"123" \n456\n')
+        else:
+            self.assertEqual(out.stdout, "abc\ndef\nghi\njkl\n")
+            self.assertEqual(out.stderr, "123\n456\n")
 
 
 def suite():

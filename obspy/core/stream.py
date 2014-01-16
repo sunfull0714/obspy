@@ -11,7 +11,8 @@ Module for handling ObsPy Stream objects.
 from glob import glob, has_magic
 from obspy.core.trace import Trace
 from obspy.core.utcdatetime import UTCDateTime
-from obspy.core.util import NamedTemporaryFile, getExampleFile
+from obspy.core.util import NamedTemporaryFile
+from obspy.core.util.decorator import map_example_filename
 from obspy.core.util.base import ENTRY_POINTS, _readFromPlugin, \
     _getFunctionFromEntryPoint
 from obspy.core.util.decorator import uncompressFile, raiseIfMasked
@@ -26,6 +27,7 @@ import urllib2
 import warnings
 
 
+@map_example_filename("pathname_or_url")
 def read(pathname_or_url=None, format=None, headonly=False, starttime=None,
          endtime=None, nearest_sample=True, dtype=None, apply_calib=False,
          **kwargs):
@@ -182,14 +184,6 @@ def read(pathname_or_url=None, format=None, headonly=False, starttime=None,
     kwargs['starttime'] = starttime
     kwargs['endtime'] = endtime
     kwargs['nearest_sample'] = nearest_sample
-    # if pathname starts with /path/to/ try to search in examples
-    if isinstance(pathname_or_url, basestring) and \
-       pathname_or_url.startswith('/path/to/'):
-        try:
-            pathname_or_url = getExampleFile(pathname_or_url[9:])
-        except:
-            # otherwise just try to read the given /path/to folder
-            pass
     # create stream
     st = Stream()
     if pathname_or_url is None:
@@ -303,6 +297,8 @@ def _createExampleStream(headonly=False):
             st.append(Trace(data=data[channel], header=header))
         else:
             st.append(Trace(header=header))
+    from obspy.station import read_inventory
+    st.attach_response(read_inventory("/path/to/BW_RJOB.xml"))
     return st
 
 
@@ -1254,8 +1250,9 @@ class Stream(object):
         :param keys: List containing the values according to which the traces
              will be sorted. They will be sorted by the first item first and
              then by the second item and so on.
-             Available items: 'network', 'station', 'channel', 'location',
-             'starttime', 'endtime', 'sampling_rate', 'npts', 'dataquality'
+             Always available items: 'network', 'station', 'channel',
+             'location', 'starttime', 'endtime', 'sampling_rate', 'npts',
+             'dataquality'
              Defaults to ['network', 'station', 'location', 'channel',
              'starttime', 'endtime'].
         :type reverse: bool
@@ -1278,19 +1275,12 @@ class Stream(object):
         BW.RJOB..EHN | 2009-08-24T00:20:03.000000Z ... | 100.0 Hz, 3000 samples
         BW.RJOB..EHZ | 2009-08-24T00:20:03.000000Z ... | 100.0 Hz, 3000 samples
         """
-        # Check the list and all items.
-        msg = "keys must be a list of item strings. Available items to " + \
-              "sort after: \n'network', 'station', 'channel', 'location', " + \
-              "'starttime', 'endtime', 'sampling_rate', 'npts', 'dataquality'"
+        # check if list
+        msg = "keys must be a list of strings. Always available items to " + \
+            "sort after: \n'network', 'station', 'channel', 'location', " + \
+            "'starttime', 'endtime', 'sampling_rate', 'npts', 'dataquality'"
         if not isinstance(keys, list):
             raise TypeError(msg)
-        items = ['network', 'station', 'channel', 'location', 'starttime',
-                 'endtime', 'sampling_rate', 'npts', 'dataquality']
-        for _i in keys:
-            try:
-                items.index(_i)
-            except:
-                raise TypeError(msg)
         # Loop over all keys in reversed order.
         for _i in keys[::-1]:
             self.traces.sort(key=lambda x: x.stats[_i], reverse=reverse)
@@ -1596,27 +1586,33 @@ class Stream(object):
             # skip trace if any given criterion is not matched
             if id and not fnmatch.fnmatch(trace.id.upper(), id.upper()):
                 continue
-            if network and not fnmatch.fnmatch(trace.stats.network.upper(),
-                                               network.upper()):
+            if network is not None:
+                if not fnmatch.fnmatch(trace.stats.network.upper(),
+                                       network.upper()):
+                    continue
+            if station is not None:
+                if not fnmatch.fnmatch(trace.stats.station.upper(),
+                                       station.upper()):
+                    continue
+            if location is not None:
+                if not fnmatch.fnmatch(trace.stats.location.upper(),
+                                       location.upper()):
+                    continue
+            if channel is not None:
+                if not fnmatch.fnmatch(trace.stats.channel.upper(),
+                                       channel.upper()):
+                    continue
+            if sampling_rate is not None:
+                if float(sampling_rate) != trace.stats.sampling_rate:
+                    continue
+            if npts is not None and int(npts) != trace.stats.npts:
                 continue
-            if station and not fnmatch.fnmatch(trace.stats.station.upper(),
-                                               station.upper()):
-                continue
-            if location and not fnmatch.fnmatch(trace.stats.location.upper(),
-                                                location.upper()):
-                continue
-            if channel and not fnmatch.fnmatch(trace.stats.channel.upper(),
-                                               channel.upper()):
-                continue
-            if sampling_rate and \
-               float(sampling_rate) != trace.stats.sampling_rate:
-                continue
-            if npts and int(npts) != trace.stats.npts:
-                continue
-            if component and \
-                    not fnmatch.fnmatch(trace.stats.channel[-1].upper(),
-                                        component.upper()):
-                continue
+            if component is not None:
+                if len(trace.stats.channel) < 3:
+                    continue
+                if not fnmatch.fnmatch(trace.stats.channel[-1].upper(),
+                                       component.upper()):
+                    continue
             traces.append(trace)
         return self.__class__(traces=traces)
 
@@ -1825,7 +1821,6 @@ seismometer_correction_simulation.html#using-a-resp-file>`_.
         >>> from obspy import read
         >>> from obspy.signal import cornFreq2Paz
         >>> st = read()
-        >>> st.plot()  # doctest: +SKIP
         >>> paz_sts2 = {'poles': [-0.037004+0.037016j, -0.037004-0.037016j,
         ...                       -251.33+0j,
         ...                       -131.04-467.29j, -131.04+467.29j],
@@ -1843,7 +1838,6 @@ seismometer_correction_simulation.html#using-a-resp-file>`_.
             from obspy import read
             from obspy.signal import cornFreq2Paz
             st = read()
-            st.plot()
             paz_sts2 = {'poles': [-0.037004+0.037016j, -0.037004-0.037016j,
                                   -251.33+0j,
                                   -131.04-467.29j, -131.04+467.29j],
@@ -2634,6 +2628,96 @@ seismometer_correction_simulation.html#using-a-resp-file>`_.
         for trace in self.traces:
             new_stream.extend(trace.split())
         return new_stream
+
+    @map_example_filename("inventories")
+    def attach_response(self, inventories):
+        """
+        Search for and attach channel response to each trace as
+        trace.stats.response. Does not raise an exception but shows a warning
+        if response information can not be found for all traces. Returns a
+        list of traces for which no response could be found.
+        To subsequently deconvolve the instrument response use
+        :meth:`Stream.remove_response`.
+
+        >>> from obspy import read, read_inventory
+        >>> st = read()
+        >>> inv = read_inventory("/path/to/BW_RJOB.xml")
+        >>> st.attach_response(inv)
+        []
+        >>> tr = st[0]
+        >>> print tr.stats.response  # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
+        Channel Response
+           From M/S (Velocity in Meters Per Second) to COUNTS (Digital Counts)
+           Overall Sensitivity: 2.5168e+09 defined at 0.020 Hz
+           4 stages:
+              Stage 1: PolesZerosResponseStage from M/S to V, gain: 1500.00
+              Stage 2: CoefficientsTypeResponseStage from V to COUNTS, ...
+              Stage 3: FIRResponseStage from COUNTS to COUNTS, gain: 1.00
+              Stage 4: FIRResponseStage from COUNTS to COUNTS, gain: 1.00
+
+        :type inventories: :class:`~obspy.station.inventory.Inventory` or
+            :class:`~obspy.station.network.Network` or a list containing
+            objects of these types.
+        :param inventories: Station metadata to use in search for response for
+            each trace in the stream.
+        :rtype: list of :class:`~obspy.core.trace.Trace`
+        :returns: list of traces for which no response information could be
+            found.
+        """
+        skipped_traces = []
+        for tr in self.traces:
+            try:
+                tr.attach_response(inventories)
+            except Exception as e:
+                if str(e) == "No matching response information found.":
+                    warnings.warn(str(e))
+                    skipped_traces.append(tr)
+                else:
+                    raise
+        return skipped_traces
+
+    def remove_response(self, *args, **kwargs):
+        """
+        Method to deconvolve instrument response for all Traces in Stream.
+
+        For details see the corresponding
+        :meth:`~obspy.core.trace.Trace.remove_response` method of
+        :class:`~obspy.core.trace.Trace`.
+
+        >>> from obspy import read
+        >>> st = read()
+        >>> # Response object is already attached to example data:
+        >>> resp = st[0].stats.response
+        >>> print resp  # doctest: +NORMALIZE_WHITESPACE +ELLIPSIS
+        Channel Response
+            From M/S (Velocity in Meters Per Second) to COUNTS (Digital Counts)
+            Overall Sensitivity: 2.5168e+09 defined at 0.020 Hz
+            4 stages:
+                Stage 1: PolesZerosResponseStage from M/S to V, gain: 1500.00
+                Stage 2: CoefficientsTypeResponseStage from V to COUNTS, ...
+                Stage 3: FIRResponseStage from COUNTS to COUNTS, gain: 1.00
+                Stage 4: FIRResponseStage from COUNTS to COUNTS, gain: 1.00
+        >>> st.remove_response()  # doctest: +ELLIPSIS
+        <...Stream object at 0x...>
+        >>> st.plot()  # doctest: +SKIP
+
+        .. plot::
+
+            from obspy import read
+            st = read()
+            st.remove_response()
+            st.plot()
+
+        .. note::
+
+            This operation is performed in place on the actual data arrays. The
+            raw data is not accessible anymore afterwards. To keep your
+            original data, use :meth:`~obspy.core.stream.Stream.copy` to create
+            a copy of your stream object.
+        """
+        for tr in self:
+            tr.remove_response(*args, **kwargs)
+        return self
 
 
 def isPickle(filename):  # @UnusedVariable

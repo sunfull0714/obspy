@@ -96,10 +96,10 @@ class Unpickler(object):
     def _comments(self, element):
         obj = []
         for el in self._xpath('comment', element):
-            comment = Comment()
+            comment = Comment(force_resource_id=False)
             comment.text = self._xpath2obj('text', el)
-            comment.resource_id = el.get('id', None)
             comment.creation_info = self._creation_info(el)
+            comment.resource_id = el.get('id', None)
             obj.append(comment)
         return obj
 
@@ -262,18 +262,23 @@ class Unpickler(object):
             obj.confidence_ellipsoid = ConfidenceEllipsoid()
         return obj
 
+    def _waveform_ids(self, element):
+        objs = []
+        for wid_el in self._xpath('waveformID', element):
+            obj = WaveformStreamID()
+            obj.network_code = wid_el.get('networkCode') or ''
+            obj.station_code = wid_el.get('stationCode') or ''
+            obj.location_code = wid_el.get('locationCode')
+            obj.channel_code = wid_el.get('channelCode')
+            obj.resource_uri = wid_el.text
+            objs.append(obj)
+        return objs
+
     def _waveform_id(self, element):
-        obj = WaveformStreamID()
         try:
-            wid_el = self._xpath('waveformID', element)[0]
-        except:
-            return obj
-        obj.network_code = wid_el.get('networkCode') or ''
-        obj.station_code = wid_el.get('stationCode') or ''
-        obj.location_code = wid_el.get('locationCode')
-        obj.channel_code = wid_el.get('channelCode')
-        obj.resource_uri = wid_el.text
-        return obj
+            return self._waveform_ids(element)[0]
+        except IndexError:
+            return WaveformStreamID()
 
     def _arrival(self, element):
         """
@@ -282,9 +287,8 @@ class Unpickler(object):
         :type element: etree.Element
         :rtype: :class:`~obspy.core.event.Arrival`
         """
-        obj = Arrival()
+        obj = Arrival(force_resource_id=False)
         # required parameter
-        obj.resource_id = element.get('publicID')
         obj.pick_id = self._xpath2obj('pickID', element) or ''
         obj.phase = self._xpath2obj('phase', element) or ''
         # optional parameter
@@ -306,6 +310,7 @@ class Unpickler(object):
         obj.earth_model_id = self._xpath2obj('earthModelID', element)
         obj.comments = self._comments(element)
         obj.creation_info = self._creation_info(element)
+        obj.resource_id = element.get('publicID')
         return obj
 
     def _pick(self, element):
@@ -315,9 +320,8 @@ class Unpickler(object):
         :type element: etree.Element
         :rtype: :class:`~obspy.core.event.Pick`
         """
-        obj = Pick()
+        obj = Pick(force_resource_id=False)
         # required parameter
-        obj.resource_id = element.get('publicID')
         obj.time, obj.time_errors = self._time_value(element, 'time')
         obj.waveform_id = self._waveform_id(element)
         # optional parameter
@@ -335,6 +339,7 @@ class Unpickler(object):
         obj.evaluation_status = self._xpath2obj('evaluationStatus', element)
         obj.comments = self._comments(element)
         obj.creation_info = self._creation_info(element)
+        obj.resource_id = element.get('publicID')
         return obj
 
     def _origin(self, element):
@@ -357,9 +362,8 @@ class Unpickler(object):
         >>> print(origin.latitude)
         34.23
         """
-        obj = Origin()
+        obj = Origin(force_resource_id=False)
         # required parameter
-        obj.resource_id = element.get('publicID')
         obj.time, obj.time_errors = self._time_value(element, 'time')
         obj.latitude, obj.latitude_errors = \
             self._float_value(element, 'latitude')
@@ -381,6 +385,7 @@ class Unpickler(object):
         obj.creation_info = self._creation_info(element)
         obj.comments = self._comments(element)
         obj.origin_uncertainty = self._origin_uncertainty(element)
+        obj.resource_id = element.get('publicID')
         return obj
 
     def _magnitude(self, element):
@@ -403,9 +408,8 @@ class Unpickler(object):
         >>> print(magnitude.mag)
         3.2
         """
-        obj = Magnitude()
+        obj = Magnitude(force_resource_id=False)
         # required parameter
-        obj.resource_id = element.get('publicID')
         obj.mag, obj.mag_errors = self._float_value(element, 'mag')
         # optional parameter
         obj.magnitude_type = self._xpath2obj('type', element)
@@ -419,6 +423,7 @@ class Unpickler(object):
         obj.station_magnitude_contributions = \
             self._station_magnitude_contributions(element)
         obj.comments = self._comments(element)
+        obj.resource_id = element.get('publicID')
         return obj
 
     def _station_magnitude(self, element):
@@ -441,9 +446,8 @@ class Unpickler(object):
         >>> print(station_mag.mag)
         3.2
         """
-        obj = StationMagnitude()
+        obj = StationMagnitude(force_resource_id=False)
         # required parameter
-        obj.resource_id = element.get('publicID')
         obj.origin_id = self._xpath2obj('originID', element) or ''
         obj.mag, obj.mag_errors = self._float_value(element, 'mag')
         # optional parameter
@@ -453,6 +457,7 @@ class Unpickler(object):
         obj.waveform_id = self._waveform_id(element)
         obj.creation_info = self._creation_info(element)
         obj.comments = self._comments(element)
+        obj.resource_id = element.get('publicID')
         return obj
 
     def _axis(self, element, name):
@@ -603,13 +608,12 @@ class Unpickler(object):
         :type element: etree.Element
         :rtype: :class:`~obspy.core.event.MomentTensor`
         """
-        obj = MomentTensor()
+        obj = MomentTensor(force_resource_id=False)
         try:
             mt_el = self._xpath('momentTensor', element)[0]
         except:
             return obj
         # required parameters
-        obj.resource_id = mt_el.get('publicID')
         obj.derived_origin_id = self._xpath2obj('derivedOriginID', mt_el)
         # optional parameter
         obj.moment_magnitude_id = self._xpath2obj('momentMagnitudeID', mt_el)
@@ -631,6 +635,7 @@ class Unpickler(object):
         obj.inversion_type = self._xpath2obj('inversionType', mt_el)
         obj.creation_info = self._creation_info(mt_el)
         obj.comments = self._comments(mt_el)
+        obj.resource_id = mt_el.get('publicID')
         return obj
 
     def _focal_mechanism(self, element):
@@ -653,11 +658,10 @@ class Unpickler(object):
         >>> print(fm.method_id)
         smi:ISC/methodID=Best_double_couple
         """
-        obj = FocalMechanism()
+        obj = FocalMechanism(force_resource_id=False)
         # required parameter
-        obj.resource_id = element.get('publicID')
         # optional parameter
-        obj.waveform_id = self._waveform_id(element)
+        obj.waveform_id = self._waveform_ids(element)
         obj.triggering_origin_id = \
             self._xpath2obj('triggeringOriginID', element)
         obj.azimuthal_gap = self._xpath2obj('azimuthalGap', element, float)
@@ -674,6 +678,7 @@ class Unpickler(object):
         obj.evaluation_status = self._xpath2obj('evaluationStatus', element)
         obj.creation_info = self._creation_info(element)
         obj.comments = self._comments(element)
+        obj.resource_id = element.get('publicID')
         return obj
 
     def _deserialize(self):
@@ -686,17 +691,15 @@ class Unpickler(object):
         # set default namespace for parser
         self.parser.namespace = self.parser._getElementNamespace(catalog_el)
         # create catalog
-        catalog = Catalog()
+        catalog = Catalog(force_resource_id=False)
         # optional catalog attributes
-        catalog.resource_id = catalog_el.get('publicID')
         catalog.description = self._xpath2obj('description', catalog_el)
         catalog.comments = self._comments(catalog_el)
         catalog.creation_info = self._creation_info(catalog_el)
         # loop over all events
         for event_el in self._xpath('event', catalog_el):
             # create new Event object
-            resource_id = event_el.get('publicID')
-            event = Event(resource_id=resource_id)
+            event = Event(force_resource_id=False)
             # optional event attributes
             event.preferred_origin_id = \
                 self._xpath2obj('preferredOriginID', event_el)
@@ -747,7 +750,9 @@ class Unpickler(object):
                 fm = self._focal_mechanism(fm_el)
                 event.focal_mechanisms.append(fm)
             # finally append newly created event to catalog
+            event.resource_id = event_el.get('publicID')
             catalog.append(event)
+        catalog.resource_id = catalog_el.get('publicID')
         return catalog
 
 
@@ -815,9 +820,9 @@ class Pickler(object):
         element.append(subelement)
 
     def _waveform_id(self, obj, element, required=False):
-        attrib = {}
         if obj is None:
             return
+        attrib = {}
         if obj.network_code:
             attrib['networkCode'] = obj.network_code
         if obj.station_code:
@@ -835,6 +840,10 @@ class Pickler(object):
 
         if len(subelement.attrib) > 0 or required:
             element.append(subelement)
+
+    def _waveform_ids(self, objs, element, required=False):
+        for obj in objs:
+            self._waveform_id(obj, element, required=required)
 
     def _creation_info(self, creation_info, element):
         if creation_info is None:
@@ -854,7 +863,7 @@ class Pickler(object):
         for contrib in stat_contrib:
             contrib_el = etree.Element('stationMagnitudeContribution')
             etree.SubElement(contrib_el, 'stationMagnitudeID').text = \
-                contrib.station_magnitude_id.resource_id
+                contrib.station_magnitude_id.id
             if contrib.weight:
                 etree.SubElement(contrib_el, 'weight').text = \
                     str(contrib.weight)
@@ -1257,7 +1266,7 @@ class Pickler(object):
             'focalMechanism',
             attrib={'publicID': self._id(focal_mechanism.resource_id)})
         # optional parameter
-        self._waveform_id(focal_mechanism.waveform_id, element)
+        self._waveform_ids(focal_mechanism.waveform_id, element)
         self._str(focal_mechanism.triggering_origin_id, element,
                   'triggeringOriginID')
         self._str(focal_mechanism.azimuthal_gap, element,

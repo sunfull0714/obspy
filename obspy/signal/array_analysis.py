@@ -1,11 +1,13 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 #-------------------------------------------------------------------
-# Filename: array.py
+# Filename: array_analysis.py
 #  Purpose: Functions for Array Analysis
-#   Author: Martin van Driel, Moritz Beyreuther
+#   Author: Martin van Driel, Moritz Beyreuther, Joachim Wassermann
 #    Email: driel@geophysik.uni-muenchen.de
 #
-# Copyright (C) 2010 Martin van Driel, Moritz Beyreuther,2013 Joachim Wassermann
+# Copyright (C) 2010-2014 Martin van Driel, Moritz Beyreuther,
+                          Joachim Wassermann
 #---------------------------------------------------------------------
 """
 Functions for Array Analysis
@@ -24,7 +26,6 @@ import scipy as sp
 from obspy.signal.util import utlGeoKm, nextpow2
 from obspy.signal.headers import clibsignal
 from obspy.core import Stream
-from obspy.core.util.decorator import deprecated
 from scipy.integrate import cumtrapz
 from obspy.signal.invsim import cosTaper
 
@@ -336,7 +337,8 @@ def array_rotation_strain(subarray, ts1, ts2, ts3, vp, vs, array_coords,
     for array in (ts_wmag, ts_w1, ts_w2, ts_w3, ts_tilt, ts_dh, ts_sh, ts_s,
                   ts_pred, ts_misfit, ts_M, ts_data, ts_ptilde):
         array.fill(np.NaN)
-    ts_e = np.NaN * np.empty((nt, 3, 3))
+    ts_e = np.empty((nt, 3, 3))
+    ts_e.fill(np.NaN)
 
     # other matrices
     udif = np.empty((3, N))
@@ -589,19 +591,6 @@ def array_rotation_strain(subarray, ts1, ts2, ts3, vp, vs, array_coords,
     return out
 
 
-@deprecated()
-def sonic(stream, win_len, win_frac, sll_x, slm_x, sll_y, slm_y, sl_s,
-          semb_thres, vel_thres, frqlow, frqhigh, stime, etime, prewhiten,
-          verbose=False, coordsys='lonlat', timestamp='mlabday'):
-    """
-    DEPRECATED: Please use :func:`obspy.signal.array_analysis.array_processing`
-    """
-    return array_processing(
-        stream, win_len, win_frac, sll_x, slm_x, sll_y, slm_y, sl_s,
-        semb_thres, vel_thres, frqlow, frqhigh, stime, etime, prewhiten,
-        verbose=False, coordsys='lonlat', timestamp='mlabday', method=0)
-
-
 def get_geometry(stream, coordsys='lonlat', return_center=False,correct_3dplane=False,
                  verbose=False):
     """
@@ -747,8 +736,12 @@ def get_timeshift(geometry, sll_x, sll_y, sl_s, grdpts_x, grdpts_y,vel_cor=4.,st
 
 def get_spoint(stream, stime, etime):
     """
+    Calculates start and end offsets relative to stime and etime for each
+    trace in stream in samples.
+
     :param stime: UTCDateTime to start
     :param etime: UTCDateTime to end
+    :returns: start and end sample offset arrays
     """
     slatest = stream[0].stats.starttime
     eearliest = stream[0].stats.endtime
@@ -783,7 +776,6 @@ def get_spoint(stream, stime, etime):
         frac, ddummy = math.modf(diffend)
         epoint[i] = int(ddummy)
         epoint[i] += negoffset
-
     return spoint, epoint
 
 
@@ -815,8 +807,8 @@ def array_transff_wavenumber(coords, klim, kstep, coordsys='lonlat'):
     else:
         raise TypeError('klim must either be a float or a tuple of length 4')
 
-    nkx = np.ceil((kxmax + kstep / 10. - kxmin) / kstep)
-    nky = np.ceil((kymax + kstep / 10. - kymin) / kstep)
+    nkx = int(np.ceil((kxmax + kstep / 10. - kxmin) / kstep))
+    nky = int(np.ceil((kymax + kstep / 10. - kymin) / kstep))
 
     transff = np.empty((nkx, nky))
 
@@ -869,9 +861,9 @@ def array_transff_freqslowness(stream, slim, sstep, fmin, fmax, fstep,
     else:
         raise TypeError('slim must either be a float or a tuple of length 4')
 
-    nsx = np.ceil((sxmax + sstep / 10. - sxmin) / sstep)
-    nsy = np.ceil((symax + sstep / 10. - symin) / sstep)
-    nf = np.ceil((fmax + fstep / 10. - fmin) / fstep)
+    nsx = int(np.ceil((sxmax + sstep / 10. - sxmin) / sstep))
+    nsy = int(np.ceil((symax + sstep / 10. - symin) / sstep))
+    nf = int(np.ceil((fmax + fstep / 10. - fmin) / fstep))
 
     transff = np.empty((nsx, nsy))
     buff = np.zeros(nf)
@@ -966,7 +958,7 @@ def array_processing(stream, win_len, win_frac, sll_x, slm_x, sll_y, slm_y,
     :return: numpy.ndarray of timestamp, relative relpow, absolute relpow,
         backazimut, slowness
     """
-    BF, CAPON = 0, 1
+    _BF, CAPON = 0, 1
     res = []
     eotr = True
 
