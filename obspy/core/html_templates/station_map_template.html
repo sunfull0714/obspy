@@ -1,20 +1,51 @@
 {% extends "base_map_template.html" %}
 {% block style_and_vector_layer %}
 
+// Set the style of the stations. Colors from colorbrewer2.org.
+var station_colors = [
+    "#E41A1C",
+    "#377EB8",
+    "#4DAF4A",
+    "#984EA3",
+    "#FF7F00",
+    "#FFFF33",
+    "#A65628",
+    "#F781BF"];
+var station_color_assignments = {};
+
+var station_color_index = 0;
+
+ol.expr.register("get_station_color", function() {
+    // Make it dependent on the network id.
+    var network = this.get("network_id");
+    if (! station_color_assignments.hasOwnProperty(network)) {
+        station_color_assignments[network] = station_colors[station_color_index % station_colors.length];
+        station_color_index += 1;
+    }
+    return station_color_assignments[network];
+});
+
 var style = new ol.style.Style({
-    symbolizers: [
-        new ol.style.Shape({
-        size: 40,
-        fill: new ol.style.Fill({
-            color: ol.expr.parse('color'),
-            opacity: 0.7
-        }),
-        stroke: new ol.style.Stroke({
-            color: ol.expr.parse('color'),
-            opacity: 0.3
-        })
+  symbolizers: [
+    // Hack. Use invisible circle to get the map.getFeatures() method to
+    // work correctly. It does not recognize text only.
+    new ol.style.Shape({
+      size: 15,
+      fill: new ol.style.Fill({
+        color: "#fff",
+        opacity: 0.0
+      })
+    }),
+    // XXX: Potentially replace by proper triangle.
+    new ol.style.Text({
+        color: ol.expr.parse('get_station_color()'),
+        // Use FontAwesome which provides Icons hidden behind unicode code
+        // points. It does ship with the ipython notebook.
+        text: '\uf0d8',
+        fontFamily: 'FontAwesome',
+        fontSize: 25
     })
-    ]
+  ]
 });
 
 var vector = new ol.layer.Vector({
@@ -27,8 +58,8 @@ var vector = new ol.layer.Vector({
                         {{ station.longitude }},
                         {{ station.latitude }}],
                         'EPSG:4326', 'EPSG:3857')),
-                tooltip: '{{ station.tooltip }}',
-                color: '{{ station.color }}'
+                tooltip: "{{ station.tooltip }}",
+                network_id: "{{ station.network_id }}"
             }),
         {% endfor %}
         ]

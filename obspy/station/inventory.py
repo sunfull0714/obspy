@@ -153,6 +153,7 @@ class Inventory(ComparingObject):
         return ret_str
 
     def _repr_html_(self):
+        import cgi
         # jinja2 is used by the HTML Notebook in any case.
         import jinja2
         from uuid import uuid4
@@ -195,8 +196,9 @@ class Inventory(ComparingObject):
                         station.end_date else "--",
                         station.total_number_of_channels)
                 }
-            this_station["color"] = "#ff0000"
-            stations.append(this_station)
+                this_station["color"] = "#ff0000"
+                this_station["tooltip"] = cgi.escape(this_station["tooltip"])
+                stations.append(this_station)
 
         template = env.get_template("station_map_template.html")
         return template.render(stations=stations, random_string=random_string)
