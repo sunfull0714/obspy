@@ -7,7 +7,7 @@
 #    Email: driel@geophysik.uni-muenchen.de
 #
 # Copyright (C) 2010-2014 Martin van Driel, Moritz Beyreuther,
-                          Joachim Wassermann
+#                         Joachim Wassermann
 #---------------------------------------------------------------------
 """
 Functions for Array Analysis
