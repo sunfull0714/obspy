@@ -153,12 +153,13 @@ class Inventory(ComparingObject):
         return ret_str
 
     def _repr_html_(self):
-        import matplotlib.pyplot as plt
-        from matplotlib.colors import Normalize, rgb2hex
-        from matplotlib.cm import ScalarMappable
-        import numpy as np
         # jinja2 is used by the HTML Notebook in any case.
         import jinja2
+        from uuid import uuid4
+
+        # Each HTML element must have a unique id in case more than one map is
+        # plotted.
+        random_string = str(uuid4())
 
         env = jinja2.Environment()
         env.loader = jinja2.FileSystemLoader(os.path.join(os.path.dirname(
@@ -198,7 +199,7 @@ class Inventory(ComparingObject):
             stations.append(this_station)
 
         template = env.get_template("station_map_template.html")
-        return template.render(stations=stations)
+        return template.render(stations=stations, random_string=random_string)
 
     def write(self, path_or_file_object, format, **kwargs):
         """

@@ -2927,6 +2927,11 @@ class Catalog(object):
         from matplotlib.cm import ScalarMappable
         # jinja2 is used by the HTML Notebook in any case.
         import jinja2
+        # Each HTML element must have a unique id in case more than one map is
+        # plotted.
+        from uuid import uuid4
+
+        random_string = str(uuid4())
 
         env = jinja2.Environment()
         env.loader = jinja2.FileSystemLoader(os.path.join(os.path.dirname(
@@ -2970,7 +2975,7 @@ class Catalog(object):
             event["color"] = rgb2hex(scal_map.to_rgba(event["depth_in_km"]))
 
         template = env.get_template("event_map_template.html")
-        return template.render(events=events)
+        return template.render(events=events, random_string=random_string)
 
     @deprecated_keywords({'date_colormap': 'colormap'})
     def plot(self, projection='cyl', resolution='l',

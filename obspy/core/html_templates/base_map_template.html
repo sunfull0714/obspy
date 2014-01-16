@@ -27,8 +27,8 @@
     </head>
     <body>
         <div style="height: 350px; width: 100%">
-            <div id="map" style="height: 100%; width: 100%">
-                <div id="map_info"></div>
+            <div id="map_{{ random_string }}" style="height: 100%; width: 100%">
+                <div id="map_info_{{ random_string }}"></div>
             </div>
         </div>
 
@@ -42,7 +42,7 @@
         script.onload = function() {
 
             var map = new ol.Map({
-                target: 'map',
+                target: 'map_{{ random_string }}',
                 renderer: ol.RendererHint.CANVAS,
                 controls: ol.control.defaults().extend([
                     new ol.control.FullScreen()
@@ -59,7 +59,7 @@
                 })
             });
 
-            var info = $('#map_info');
+            var info = $('#map_info_{{ random_string }}');
             info.tooltip({
                 animation: false,
                 trigger: 'manual'
