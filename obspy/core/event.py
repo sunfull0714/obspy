@@ -2964,7 +2964,7 @@ class Catalog(object):
         for event in events:
             event["color"] = rgb2hex(scal_map.to_rgba(event["depth_in_km"]))
 
-        with open(os.path.join(os.path.dirname(__file__),
+        with open(os.path.join(os.path.dirname(__file__), "html_templates",
                   "event_map_template.html")) as fh:
             template = jinja2.Template(fh.read())
 
