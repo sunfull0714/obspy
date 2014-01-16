@@ -2928,6 +2928,11 @@ class Catalog(object):
         # jinja2 is used by the HTML Notebook in any case.
         import jinja2
 
+        env = jinja2.Environment()
+        env.loader = jinja2.FileSystemLoader(os.path.join(os.path.dirname(
+            os.path.abspath(inspect.getfile(inspect.currentframe()))),
+            "html_templates"))
+
         # Convert to a simple list of dictionaries.
         events = []
         for event in self.events:
@@ -2964,10 +2969,7 @@ class Catalog(object):
         for event in events:
             event["color"] = rgb2hex(scal_map.to_rgba(event["depth_in_km"]))
 
-        with open(os.path.join(os.path.dirname(__file__), "html_templates",
-                  "event_map_template.html")) as fh:
-            template = jinja2.Template(fh.read())
-
+        template = env.get_template("event_map_template.html")
         return template.render(events=events)
 
     @deprecated_keywords({'date_colormap': 'colormap'})

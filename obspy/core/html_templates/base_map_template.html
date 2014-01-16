@@ -1,0 +1,100 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="http://ol3js.org/en/master/build/ol.css" />
+        <style>
+            #map {
+                position: relative;
+            }
+            #map_info {
+                position: absolute;
+                height: 1px;
+                width: 1px;
+                z-index: 100;
+            }
+            .tooltip.in {
+                opacity: 1;
+                filter: alpha(opacity=100);
+            }
+            .tooltip.top .tooltip-arrow {
+                border-top-color: white;
+            }
+            .tooltip-inner {
+                border: 2px solid white;
+                white-space: pre;
+                max-width: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div style="height: 350px; width: 100%">
+            <div id="map" style="height: 100%; width: 100%">
+                <div id="map_info"></div>
+            </div>
+        </div>
+
+        <script type="text/javascript">
+
+            // Inject the script and start building the map once it is loaded.
+        var script = document.createElement('script');
+        script.src = "http://ol3js.org/en/master/build/ol.js";
+        document.documentElement.appendChild(script);
+
+        script.onload = function() {
+
+            var map = new ol.Map({
+                target: 'map',
+                renderer: ol.RendererHint.CANVAS,
+                controls: ol.control.defaults().extend([
+                    new ol.control.FullScreen()
+                ]),
+                layers: [
+                    new ol.layer.Tile({
+                    source: new ol.source.Stamen({layer: 'toner-lite'})
+
+                    })
+                ],
+                view: new ol.View2D({
+                    center: ol.proj.transform([0.0, 30.0], 'EPSG:4326', 'EPSG:3857'),
+                    zoom: 2
+                })
+            });
+
+            var info = $('#map_info');
+            info.tooltip({
+                animation: false,
+                trigger: 'manual'
+            });
+
+            var displayFeatureInfo = function(pixel) {
+                info.css({
+                    left: pixel[0] + 'px',
+                    top: (pixel[1] - 15) + 'px'
+                });
+                map.getFeatures({
+                    pixel: pixel,
+                    layers: [vector],
+                    success: function(layerFeatures) {
+                        var feature = layerFeatures[0][0];
+                        if (feature) {
+                            info.tooltip('hide')
+                            .attr('data-original-title', feature.get('tooltip'))
+                            .tooltip('fixTitle')
+                            .tooltip('show');
+                        } else {
+                            info.tooltip('hide');
+                        }
+                    }
+                });
+            };
+
+            $(map.getViewport()).on('mousemove', function(evt) {
+                var pixel = map.getEventPixel(evt.originalEvent);
+                displayFeatureInfo(pixel);
+            });
+
+            {% block style_and_vector_layer %}{% endblock %}
+        };
+        </script>
+
+    </body>
+</html>
