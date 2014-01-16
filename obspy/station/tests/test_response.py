@@ -9,8 +9,10 @@ Test suite for the response handling.
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+from __future__ import unicode_literals
 import inspect
 import numpy as np
+from obspy import UTCDateTime
 from obspy.signal.invsim import evalresp
 from obspy.station import read_inventory
 from obspy.xseed import Parser
@@ -48,7 +50,16 @@ class ResponseTest(unittest.TestCase):
                                          filename + os.path.extsep + "seed")
 
             p = Parser(seed_filename)
+
+            # older systems don't like an end date in the year 2599
+            t_ = UTCDateTime(2030, 1, 1)
+            if p.blockettes[50][0].end_effective_date > t_:
+                p.blockettes[50][0].end_effective_date = None
+            if p.blockettes[52][0].end_date > t_:
+                p.blockettes[52][0].end_date = None
+
             resp_filename = p.getRESP()[0][-1]
+
             inv = read_inventory(xml_filename)
 
             network = inv[0].code
