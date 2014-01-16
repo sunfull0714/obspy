@@ -9,6 +9,7 @@ Provides the Inventory class.
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+import inspect
 from pkg_resources import load_entry_point
 import obspy
 from obspy.core.util.base import ComparingObject
@@ -16,6 +17,7 @@ from obspy.core.util import getExampleFile
 from obspy.core.util.base import ENTRY_POINTS, _readFromPlugin
 from obspy.station.stationxml import SOFTWARE_MODULE, SOFTWARE_URI
 from obspy.station.network import Network
+import os
 import textwrap
 import warnings
 from copy import deepcopy
@@ -149,6 +151,54 @@ class Inventory(ComparingObject):
             ", ".join(contents["channels"]), initial_indent="\t\t\t",
             subsequent_indent="\t\t\t", expand_tabs=False))
         return ret_str
+
+    def _repr_html_(self):
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import Normalize, rgb2hex
+        from matplotlib.cm import ScalarMappable
+        import numpy as np
+        # jinja2 is used by the HTML Notebook in any case.
+        import jinja2
+
+        env = jinja2.Environment()
+        env.loader = jinja2.FileSystemLoader(os.path.join(os.path.dirname(
+            os.path.abspath(inspect.getfile(inspect.currentframe()))),
+            os.path.pardir, "core", "html_templates"))
+
+        # Convert to a simple list of dictionaries.
+        stations = []
+        for network in self.networks:
+            for station in network.stations:
+                this_station = {
+                    "network_id": network.code,
+                    "station_id": station.code,
+                    "station_description": station.site.name,
+                    "latitude": station.latitude,
+                    "longitude": station.longitude,
+                    "elevation": station.elevation,
+                    "start_date": station.start_date,
+                    "end_date": station.end_date,
+                    "number_of_channels": station.total_number_of_channels,
+                    "tooltip": (
+                        "Station %s.%s %s"
+                        "\\nElevation: %.1f m"
+                        "\\nTime: %s - %s"
+                        "\\nTotal Number of Channels: %i") % (
+                        network.code,
+                        station.code,
+                        "(%s)" % station.site.name if
+                        station.site.name else "",
+                        station.elevation,
+                        str(station.start_date),
+                        str(station.end_date) if
+                        station.end_date else "--",
+                        station.total_number_of_channels)
+                }
+            this_station["color"] = "#ff0000"
+            stations.append(this_station)
+
+        template = env.get_template("station_map_template.html")
+        return template.render(stations=stations)
 
     def write(self, path_or_file_object, format, **kwargs):
         """
