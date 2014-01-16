@@ -2,10 +2,10 @@
     <head>
         <link rel="stylesheet" href="http://ol3js.org/en/master/build/ol.css" />
         <style>
-            #map {
+            #map_{{ random_string }} {
                 position: relative;
             }
-            #map_info {
+            #map_info_{{ random_string }} {
                 position: absolute;
                 height: 1px;
                 width: 1px;
@@ -70,6 +70,7 @@
                     left: pixel[0] + 'px',
                     top: (pixel[1] - 15) + 'px'
                 });
+
                 map.getFeatures({
                     pixel: pixel,
                     layers: [vector],
@@ -87,9 +88,11 @@
                 });
             };
 
-            $(map.getViewport()).on('mousemove', function(evt) {
-                var pixel = map.getEventPixel(evt.originalEvent);
+            $(map.getViewport()).on('mousemove', function(event) {
+                var pixel = map.getEventPixel(event.originalEvent);
                 displayFeatureInfo(pixel);
+
+
             });
 
             {% block style_and_vector_layer %}{% endblock %}
