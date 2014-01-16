@@ -2921,6 +2921,55 @@ class Catalog(object):
             raise TypeError(msg % (format, ', '.join(EVENT_ENTRY_POINTS)))
         writeFormat(self, filename, **kwargs)
 
+    def _repr_html_(self):
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import Normalize, rgb2hex
+        from matplotlib.cm import ScalarMappable
+        # jinja2 is used by the HTML Notebook in any case.
+        import jinja2
+
+        # Convert to a simple list of dictionaries.
+        events = []
+        for event in self.events:
+            if not event.origins or not event.magnitudes:
+                continue
+            this_origin = event.preferred_origin() or event.origins[0]
+            this_magnitude = event.preferred_magnitude() or event.magnitudes[0]
+            this_event = {
+                "latitude": this_origin.latitude,
+                "longitude": this_origin.longitude,
+                "depth_in_km": this_origin.depth / 1000.0,
+                "time": this_origin.time,
+                "magnitude": this_magnitude.mag,
+                "magnitude_type": this_magnitude.magnitude_type,
+                "description": event.event_descriptions[0].text if
+                event.event_descriptions else ""}
+            this_event["tooltip"] = (
+                "Magnitude: %.2f %s"
+                "\\nDepth: %.1f km"
+                "\\n%s"
+                "\\n%s") % (this_event["magnitude"],
+                            this_event["magnitude_type"],
+                            this_event["depth_in_km"],
+                            str(this_event["time"]),
+                            this_event["description"])
+            events.append(this_event)
+
+        # Color code the events according to their depth.
+        colormap = plt.get_cmap("RdYlGn_r")
+        scal_map = ScalarMappable(norm=Normalize(0, 700),
+                                  cmap=colormap)
+        scal_map.set_array(np.linspace(0, 1, 1))
+
+        for event in events:
+            event["color"] = rgb2hex(scal_map.to_rgba(event["depth_in_km"]))
+
+        with open(os.path.join(os.path.dirname(__file__),
+                  "event_map_template.html")) as fh:
+            template = jinja2.Template(fh.read())
+
+        return template.render(events=events)
+
     @deprecated_keywords({'date_colormap': 'colormap'})
     def plot(self, projection='cyl', resolution='l',
              continent_fill_color='0.9',
