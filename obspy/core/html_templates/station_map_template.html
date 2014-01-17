@@ -3,14 +3,19 @@
 
 // Set the style of the stations. Colors from colorbrewer2.org.
 var station_colors = [
-    "#E41A1C",
-    "#377EB8",
-    "#4DAF4A",
-    "#984EA3",
+    "#E31A1C",
+    "#1F78B4",
+    "#6A3D9A",
+    "#33A02C",
     "#FF7F00",
-    "#FFFF33",
-    "#A65628",
-    "#F781BF"];
+    "#FDBF6F",
+    "#CAB2D6",
+    "#B2DF8A",
+    "#A6CEE3",
+    "#FB9A99",
+    "#FFFF99",
+    "#B15928"];
+
 var station_color_assignments = {};
 
 var station_color_index = 0;
@@ -38,11 +43,11 @@ var style = new ol.style.Style({
     }),
     // XXX: Potentially replace by proper triangle.
     new ol.style.Text({
-        color: ol.expr.parse('get_station_color()'),
+        color: ol.expr.parse("get_station_color()"),
         // Use FontAwesome which provides Icons hidden behind unicode code
         // points. It does ship with the ipython notebook.
-        text: '\uf0d8',
-        fontFamily: 'FontAwesome',
+        text: "\uf0d8",
+        fontFamily: "FontAwesome",
         fontSize: 25
     })
   ]
@@ -57,7 +62,7 @@ var vector = new ol.layer.Vector({
                     ol.proj.transform([
                         {{ station.longitude }},
                         {{ station.latitude }}],
-                        'EPSG:4326', 'EPSG:3857')),
+                        "EPSG:4326", "EPSG:3857")),
                 tooltip: "{{ station.tooltip }}",
                 network_id: "{{ station.network_id }}"
             }),

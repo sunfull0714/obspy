@@ -2973,13 +2973,13 @@ class Catalog(object):
                 event.event_descriptions else ""}
             this_event["tooltip"] = (
                 "Magnitude: %.2f %s"
-                "\\nDepth: %.1f km"
-                "\\n%s"
-                "\\n%s") % (this_event["magnitude"],
-                            this_event["magnitude_type"],
-                            this_event["depth_in_km"],
-                            str(this_event["time"]),
-                            this_event["description"])
+                r"\\nDepth: %.1f km"
+                r"\\n%s"
+                r"\\n%s") % (this_event["magnitude"],
+                             this_event["magnitude_type"],
+                             this_event["depth_in_km"],
+                             str(this_event["time"]),
+                             this_event["description"])
             events.append(this_event)
 
         # Color code the events according to their depth.
@@ -2992,7 +2992,13 @@ class Catalog(object):
             event["color"] = rgb2hex(scal_map.to_rgba(event["depth_in_km"]))
 
         template = env.get_template("event_map_template.html")
-        return template.render(events=events, random_string=random_string)
+        template = template.render(events=events, random_string=random_string)
+
+        final_template = env.get_template("iframe_wrapper.html")
+        return final_template.render(
+            random_string=random_string,
+            contents=template.replace("\n", "\\n")
+            .replace("</script>", "<\\/script>"))
 
     @deprecated_keywords({'date_colormap': 'colormap'})
     def plot(self, projection='cyl', resolution='l',

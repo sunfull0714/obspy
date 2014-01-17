@@ -1,0 +1,14 @@
+<iframe
+    style="width: 100%; height: 350px; overflow: hidden; border: 1px solid #CCC; box-shadow: 2px 2px 5px #CCC; border-radius: 4px;"
+    seamless="seamless"
+    scrolling="no"
+    allowfullscreen="true"
+    mozallowfullscreen="true"
+    webkitallowfullscreen="true"
+    id="iframeID_{{ random_string }}">
+</iframe>
+
+<script type="text/javascript">
+    var iframe = document.getElementById('iframeID_{{ random_string }}');
+    iframe.src = 'data:text/html;charset=utf-8,' + encodeURI('{{ contents }}');
+</script>

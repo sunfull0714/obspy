@@ -1,13 +1,28 @@
 <!--Partially based on-->
 <!--http://ol3js.org/en/master/examples/kml-earthquakes.html-->
+<!--Do not use single quotes!!!!-->
 <html>
     <head>
         <link rel="stylesheet" href="http://ol3js.org/en/master/build/ol.css" />
+        <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/css/bootstrap-combined.min.css" />
+        <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.min.css" />
+
+        <script src="http://ajax.googleapis.com/ajax/libs/jquery/2.0.2/jquery.min.js" type="text/javascript"></script>
+        <script src="http://ol3js.org/en/master/build/ol.js" type="text/javascript"></script>
+        <script src="http://netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/js/bootstrap.min.js" type="text/javascript"></script>
+
         <style>
-            #map_{{ random_string }} {
+            html, body {
+                min-height: 100%;            }
+            body {
+                margin: 0px;
+                width: 100%;
+                height: 100%;
+            }
+            #map {
                 position: relative;
             }
-            #map_info_{{ random_string }} {
+            #map_info {
                 position: absolute;
                 height: 1px;
                 width: 1px;
@@ -28,49 +43,41 @@
         </style>
     </head>
     <body>
-        <div style="height: 350px; width: 100%">
-            <div id="map_{{ random_string }}" style="height: 100%; width: 100%">
-                <div id="map_info_{{ random_string }}"></div>
+        <div style="height: 100%; width: 100%">
+            <div id="map" style="height: 100%; width: 100%">
+                <div id="map_info"></div>
             </div>
         </div>
 
         <script type="text/javascript">
-
-            // Inject the script and start building the map once it is loaded.
-        var script = document.createElement('script');
-        script.src = "http://ol3js.org/en/master/build/ol.js";
-        document.documentElement.appendChild(script);
-
-        script.onload = function() {
-
             var map = new ol.Map({
-                target: 'map_{{ random_string }}',
+                target: "map",
                 renderer: ol.RendererHint.CANVAS,
                 controls: ol.control.defaults().extend([
                     new ol.control.FullScreen()
                 ]),
                 layers: [
                     new ol.layer.Tile({
-                    source: new ol.source.Stamen({layer: 'toner-lite'})
+                    source: new ol.source.Stamen({layer: "toner-lite"})
 
                     })
                 ],
                 view: new ol.View2D({
-                    center: ol.proj.transform([0.0, 30.0], 'EPSG:4326', 'EPSG:3857'),
+                    center: ol.proj.transform([0.0, 30.0], "EPSG:4326", "EPSG:3857"),
                     zoom: 2
                 })
             });
 
-            var info = $('#map_info_{{ random_string }}');
+            var info = $("#map_info");
             info.tooltip({
                 animation: false,
-                trigger: 'manual'
+                trigger: "manual"
             });
 
             var displayFeatureInfo = function(pixel) {
                 info.css({
-                    left: pixel[0] + 'px',
-                    top: (pixel[1] - 15) + 'px'
+                    left: pixel[0] + "px",
+                    top: (pixel[1] - 15) + "px"
                 });
 
                 map.getFeatures({
@@ -79,18 +86,18 @@
                     success: function(layerFeatures) {
                         var feature = layerFeatures[0][0];
                         if (feature) {
-                            info.tooltip('hide')
-                            .attr('data-original-title', feature.get('tooltip'))
-                            .tooltip('fixTitle')
-                            .tooltip('show');
+                            info.tooltip("hide")
+                            .attr("data-original-title", feature.get("tooltip"))
+                            .tooltip("fixTitle")
+                            .tooltip("show");
                         } else {
-                            info.tooltip('hide');
+                            info.tooltip("hide");
                         }
                     }
                 });
             };
 
-            $(map.getViewport()).on('mousemove', function(event) {
+            $(map.getViewport()).on("mousemove", function(event) {
                 var pixel = map.getEventPixel(event.originalEvent);
                 displayFeatureInfo(pixel);
 
@@ -98,7 +105,6 @@
             });
 
             {% block style_and_vector_layer %}{% endblock %}
-        };
         </script>
 
     </body>

@@ -4,13 +4,13 @@
 var style = new ol.style.Style({
     symbolizers: [
         new ol.style.Shape({
-        size: ol.expr.parse('10 + 5 * magnitude'),
+        size: ol.expr.parse("10 + 5 * magnitude"),
         fill: new ol.style.Fill({
-            color: ol.expr.parse('color'),
+            color: ol.expr.parse("color"),
             opacity: 0.7
         }),
         stroke: new ol.style.Stroke({
-            color: ol.expr.parse('color'),
+            color: ol.expr.parse("color"),
             opacity: 0.3
         })
     })
@@ -26,10 +26,10 @@ var vector = new ol.layer.Vector({
                     ol.proj.transform([
                         {{ event.longitude }},
                         {{ event.latitude }}],
-                        'EPSG:4326', 'EPSG:3857')),
+                        "EPSG:4326", "EPSG:3857")),
                 magnitude: {{ event.magnitude }},
-                tooltip: '{{ event.tooltip }}',
-                color: '{{ event.color }}'
+                tooltip: "{{ event.tooltip }}",
+                color: "{{ event.color }}"
             }),
         {% endfor %}
         ]

@@ -180,9 +180,11 @@ class Inventory(ComparingObject):
         for network in self.networks:
             for station in network.stations:
                 this_station = {
-                    "network_id": network.code,
-                    "station_id": station.code,
-                    "station_description": station.site.name,
+                    "network_id": cgi.escape(network.code),
+                    "station_id": cgi.escape(station.code),
+                    # HTML escape and furthermore escape single quotes.
+                    "station_description": cgi.escape(
+                        station.site.name).replace("'", "&#39"),
                     "latitude": station.latitude,
                     "longitude": station.longitude,
                     "elevation": station.elevation,
@@ -191,9 +193,10 @@ class Inventory(ComparingObject):
                     "number_of_channels": station.total_number_of_channels,
                     "tooltip": (
                         "Station %s.%s %s"
-                        "\\nElevation: %.1f m"
-                        "\\nTime: %s - %s"
-                        "\\nTotal Number of Channels: %i") % (
+                        # Escape newline in the injected iframe html...
+                        r"\\nElevation: %.1f m"
+                        r"\\nTime: %s - %s"
+                        r"\\nTotal Number of Channels: %i") % (
                         network.code,
                         station.code,
                         "(%s)" % station.site.name if
@@ -204,12 +207,19 @@ class Inventory(ComparingObject):
                         station.end_date else "--",
                         station.total_number_of_channels)
                 }
-                this_station["color"] = "#ff0000"
-                this_station["tooltip"] = cgi.escape(this_station["tooltip"])
+                # HTML escape and furthermore escape single quotes.
+                this_station["tooltip"] = \
+                    cgi.escape(this_station["tooltip"]).replace("'", "&#39")
                 stations.append(this_station)
 
         template = env.get_template("station_map_template.html")
-        return template.render(stations=stations, random_string=random_string)
+        template = template.render(stations=stations)
+
+        final_template = env.get_template("iframe_wrapper.html")
+        return final_template.render(
+            random_string=random_string,
+            contents=template.replace("\n", "\\n")
+            .replace("</script>", "<\\/script>"))
 
     def write(self, path_or_file_object, format, **kwargs):
         """
