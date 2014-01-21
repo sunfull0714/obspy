@@ -160,7 +160,7 @@ class Inventory(ComparingObject):
             subsequent_indent="\t\t\t", expand_tabs=False))
         return ret_str
 
-    def _repr_html_(self):
+    def _repr_html_(self, filename=None):
         import cgi
         # jinja2 is used by the HTML Notebook in any case.
         import jinja2
@@ -214,6 +214,13 @@ class Inventory(ComparingObject):
 
         template = env.get_template("station_map_template.html")
         template = template.render(stations=stations)
+
+        if filename:
+            if isinstance(filename, basestring):
+                with open(filename, "w") as fh:
+                    fh.write(template)
+            else:
+                filename.write(template)
 
         final_template = env.get_template("iframe_wrapper.html")
         return final_template.render(
