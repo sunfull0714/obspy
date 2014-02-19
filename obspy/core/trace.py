@@ -12,9 +12,9 @@ from copy import deepcopy, copy
 from obspy.core.utcdatetime import UTCDateTime
 from obspy.core.util import AttribDict, createEmptyDataChunk
 from obspy.core.util.base import _getFunctionFromEntryPoint
-from obspy.core.util.misc import flatnotmaskedContiguous
 from obspy.core.util.decorator import raiseIfMasked, skipIfNoData, \
     taper_API_change
+from obspy.core.util.misc import flatnotmaskedContiguous
 import math
 import numpy as np
 import warnings
@@ -2159,7 +2159,7 @@ seismometer_correction_simulation.html#using-a-resp-file>`_.
         :type taper_fraction: float
         :param taper_fraction: Taper fraction of cosine taper to use.
         """
-        from obspy.station import Response
+        from obspy.station import Response, PolynomialResponseStage
         from obspy.signal.invsim import cosTaper, c_sac_taper, specInv
 
         if "response" not in self.stats:
@@ -2171,6 +2171,31 @@ seismometer_correction_simulation.html#using-a-resp-file>`_.
                    "(but is of type %s).") % type(self.stats.response)
             raise TypeError(msg)
 
+
+        response = self.stats.response
+        # polynomial response using blockette 62 stage 0
+        if not response.response_stages and response.instrument_polynomial:
+            coefficients = response.instrument_polynomial.coefficients
+            self.data = np.poly1d(coefficients[::-1])(self.data)
+            return self
+
+        # polynomial response using blockette 62 stage 1 and no other stages
+        if len(response.response_stages) == 1 and \
+           isinstance(response.response_stages[0], PolynomialResponseStage):
+            # check for gain
+            if response.response_stages[0].stage_gain is None:
+                msg = 'Stage gain not defined for %s - setting it to 1.0'
+                warnings.warn(msg % self.id)
+                gain = 1
+            else:
+                gain = response.response_stages[0].stage_gain
+            coefficients = response.response_stages[0].coefficients[:]
+            for i in range(len(coefficients)):
+                coefficients[i] /= math.pow(gain, i)
+            self.data = np.poly1d(coefficients[::-1])(self.data)
+            return self
+
+        # use evalresp
         data = self.data.astype("float64")
         npts = len(data)
         # time domain pre-processing
@@ -2179,15 +2204,9 @@ seismometer_correction_simulation.html#using-a-resp-file>`_.
         if taper:
             data *= cosTaper(npts, taper_fraction,
                              sactaper=True, halfcosine=False)
-        # The number of points for the FFT has to be at least 2 * npts (in
-        # order to prohibit wrap around effects during convolution) cf.
-        # evalresp scales directly with nfft, therefore taking the next power
-        # of two has a greater negative performance impact than the slow down
-        # of a not power of two in the FFT
-        if npts & 0x1:  # check if uneven
-            nfft = 2 * (npts + 1)
-        else:
-            nfft = 2 * npts
+        # smart calculation of nfft dodging large primes
+        from obspy.signal.util import _npts2nfft
+        nfft = _npts2nfft(npts)
         # Transform data to Frequency domain
         data = np.fft.rfft(data, n=nfft)
         # calculate and apply frequency response,
