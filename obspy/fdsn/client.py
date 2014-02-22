@@ -65,9 +65,13 @@ class Client(object):
     :param user_agent: The user agent for all requests.
     :type debug: bool
     :param debug: Debug flag.
+    :type timeout: float
+    :param timeout: Maximum time (in seconds) to wait for a single request to
+        finish (after which an exception is raised).
     """
     def __init__(self, base_url="IRIS", major_versions={}, user=None,
-                 password=None, user_agent=DEFAULT_USER_AGENT, debug=False):
+                 password=None, user_agent=DEFAULT_USER_AGENT, debug=False,
+                 timeout=120):
         """
         Initializes an FDSN Web Service client.
 
@@ -87,6 +91,7 @@ class Client(object):
         """
         self.debug = debug
         self.user = user
+        self.timeout = timeout
 
         if base_url.upper() in URL_MAPPINGS:
             base_url = URL_MAPPINGS[base_url.upper()]
@@ -929,7 +934,7 @@ class Client(object):
     def _download(self, url, return_string=False, data=None):
         code, data = download_url(
             url, headers=self.request_headers, debug=self.debug,
-            return_string=return_string, data=data)
+            return_string=return_string, data=data, timeout=self.timeout)
         # No data.
         if code == 204:
             raise FDSNException("No data available for request.")
@@ -953,6 +958,9 @@ class Client(object):
             raise FDSNException("Service responds: Internal server error")
         elif code == 503:
             raise FDSNException("Service temporarily unavailable")
+        # Catch any non 200 codes.
+        elif code != 200:
+            raise FDSNException("Unknown HTTP code: %i" % code)
         return data
 
     def _build_url(self, service, resource_type, parameters={}):
@@ -1158,6 +1166,8 @@ def download_url(url, timeout=10, headers={}, debug=False,
     string.
 
     Will return a touple of Nones if the service could not be found.
+    All encountered exceptions will get raised unless `debug=True` is
+    specified.
 
     Performs a http GET if data=None, otherwise a http POST.
     """
@@ -1170,13 +1180,17 @@ def download_url(url, timeout=10, headers={}, debug=False,
     # Catch HTTP errors.
     except urllib2.HTTPError as e:
         if debug is True:
-            print("HTTP error %i while downloading '%s': %s" %
-                  (e.code, url, e.read()))
-        return e.code, None
+            msg = "HTTP error %i while downloading '%s': %s" % \
+                  (e.code, url, e.read())
+            msg += "Service error:\n%s" % url_obj.read()
+            print(msg)
+            return e.code, None
+        raise
     except Exception as e:
         if debug is True:
             print "Error while downloading: %s" % url
-        return None, None
+            return None, None
+        raise
 
     code = url_obj.getcode()
     if return_string is False:
