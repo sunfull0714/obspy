@@ -258,6 +258,9 @@ def plot_basemap(lons, lats, size, color, labels=None,
     scatter = bmap.scatter(x, y, marker=marker, s=size, c=color,
                            zorder=10, cmap=colormap)
 
+    # Hack!!
+    plt.gca().basemap = bmap
+
     if title:
         plt.suptitle(title)
 
