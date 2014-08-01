@@ -10,19 +10,27 @@ NERIES Web service client for ObsPy.
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
+from future.utils import native_str
+from future import standard_library
+with standard_library.hooks():
+    import urllib.parse
+    import urllib.request
+
 from obspy import UTCDateTime, read, Stream, __version__
 from obspy.core.event import readEvents
 from obspy.core.util import NamedTemporaryFile, guessDelta
+
+import functools
+import io
+import json
+import platform
 from suds.client import Client as SudsClient
 from suds.plugin import MessagePlugin
 from suds.sax.attribute import Attribute
 from suds.xsd.sxbase import SchemaObject
-import StringIO
-import functools
-import json
-import platform
-import urllib
-import urllib2
 import warnings
 
 
@@ -41,7 +49,7 @@ MAP = {'min_datetime': "dateMin", 'max_datetime': "dateMax",
        'longitude': "lon", 'magnitude': "mag", 'origin_id': "orid",
        'event_id': "unid"}
 
-MAP_INVERSE = dict([(value, key) for key, value in MAP.iteritems()])
+MAP_INVERSE = dict([(value, key) for key, value in MAP.items()])
 # in results the "magType" key is all lowercase, so add it to..
 MAP_INVERSE['magtype'] = "magnitude_type"
 
@@ -92,7 +100,7 @@ class _AttributePlugin(MessagePlugin):
 
     def marshalled(self, context):
         method = context.envelope.getChild('Body')[0]
-        for key, item in self.dict.iteritems():
+        for key, item in self.dict.items():
             method.attributes.append(Attribute(key, item))
 
 
@@ -109,9 +117,11 @@ class Client(object):
         :param user: The user name used for identification with the Web
             service. This entry in form of a email address is required for
             using the following methods:
+
             * :meth:`~obspy.neries.client.Client.saveWaveform`
             * :meth:`~obspy.neries.client.Client.getWaveform`
             * :meth:`~obspy.neries.client.Client.getInventory`
+
             Defaults to ``''``.
         :type password: str, optional
         :param password: A password used for authentication with the Web
@@ -119,7 +129,7 @@ class Client(object):
         :type timeout: int, optional
         :param timeout: Seconds before a connection timeout is raised (default
             is 10 seconds). Available only for Python >= 2.6.x.
-        :type debug: boolean, optional
+        :type debug: bool, optional
         :param debug: Enables verbose output.
         :type user_agent: str, optional
         :param user_agent: Sets an client identification string which may be
@@ -135,13 +145,13 @@ class Client(object):
         self.user = user
         self.password = password
         # Create an OpenerDirector for Basic HTTP Authentication
-        password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+        password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
         password_mgr.add_password(None, self.base_url, self.user,
                                   self.password)
-        auth_handler = urllib2.HTTPBasicAuthHandler(password_mgr)
-        opener = urllib2.build_opener(auth_handler)
+        auth_handler = urllib.request.HTTPBasicAuthHandler(password_mgr)
+        opener = urllib.request.build_opener(auth_handler)
         # install globally
-        urllib2.install_opener(opener)
+        urllib.request.install_opener(opener)
 
     def _fetch(self, url, headers={}, **params):
         """
@@ -154,23 +164,24 @@ class Client(object):
         """
         headers['User-Agent'] = self.user_agent
         # replace special characters
-        remoteaddr = self.base_url + url + '?' + urllib.urlencode(params)
+        remoteaddr = self.base_url + url + '?' + \
+            urllib.parse.urlencode(params)
         if self.debug:
-            print('\nRequesting %s' % (remoteaddr))
-        response = urllib2.urlopen(remoteaddr, timeout=self.timeout)
+            print(('\nRequesting %s' % (remoteaddr)))
+        response = urllib.request.urlopen(remoteaddr, timeout=self.timeout)
         doc = response.read()
         return doc
 
     def _json2list(self, data):
         """
-        Converts a JSON formated string into a event/origin list.
+        Converts a JSON formatted string into a event/origin list.
         """
         results = json.loads(data)
         events = []
         float_keys = ('depth', 'latitude', 'longitude', 'magnitude')
         for result in results['unids']:
             event = dict([(MAP_INVERSE[k], v)
-                          for k, v in result.iteritems()])
+                          for k, v in result.items()])
             for k in float_keys:
                 event[k] = float(event[k])
             event['magnitude_type'] = event['magnitude_type'].lower()
@@ -192,8 +203,8 @@ class Client(object):
 
         :type min_datetime: str, optional
         :param min_datetime: Earliest date and time for search.
-            ISO 8601-formatted, in UTC: yyyy-MM-dd['T'HH:mm:ss].
-            e.g.: ``"2002-05-17"`` or ``"2002-05-17T05:24:00"``
+            ISO 8601-formatted, in UTC: yyyy-MM-dd['T'HH:mm:ss],
+            e.g. ``"2002-05-17"`` or ``"2002-05-17T05:24:00"``.
         :type max_datetime: str, optional
         :param max_datetime: Latest date and time for search.
         :type min_latitude: int or float, optional
@@ -219,16 +230,18 @@ class Client(object):
             ``"mb"``.
         :type author: str, optional
         :param author: Origin author. Examples: ``"CSEM"``, ``"LDG"``, ...
-        :type max_results: int (maximum: 2500)
-        :param max_results: Maximum number of returned results.
+        :type max_results: int
+        :param max_results: Maximum number of returned results. Absolute
+            maximum is 2500 results.
         :type sort_by: str
         :param sort_by: Field to sort by. Options: ``"datetime"``,
             ``"magnitude"``, ``"flynn_region"``, ``"depth"``. Only available if
             attribute ``format`` is set to ``"list"``.
         :type sort_direction: str
         :param sort_direction: Sort direction. Format: ``"ASC"`` or ``"DESC"``.
-        :type format: ``'list'``, ``'xml'`` or ``'catalog'``, optional
-        :param format: Format of returned results. Defaults to ``'list'``.
+        :type format: str, optional
+        :param format: Format of returned results. Can be one of ``'list'``,
+            ``'xml'`` or ``'catalog'``. Defaults to ``'list'``.
 
             .. note::
                 The JSON-formatted queries only look at preferred origin
@@ -279,9 +292,9 @@ class Client(object):
         data = self._fetch("/services/event/search", **kwargs)
         # format output
         if format == "list":
-            return self._json2list(data)
+            return self._json2list(data.decode())
         elif format == "catalog":
-            return readEvents(StringIO.StringIO(data), 'QUAKEML')
+            return readEvents(io.BytesIO(data), 'QUAKEML')
         else:
             return data
 
@@ -297,8 +310,9 @@ class Client(object):
                 Unfortunately you can't rely on this number due to an
                 implementation error in the NERIES web service.
 
-        :type format: ``'list'``, ``'xml'`` or ``'catalog'``, optional
-        :param format: Format of returned results. Defaults to ``'xml'``.
+        :type format: str, optional
+        :param format: Format of returned results. Can be one of ``'list'``,
+            ``'xml'`` or ``'catalog'``. Defaults to ``'xml'``.
         :rtype: :class:`~obspy.core.event.Catalog`, list or str
         :return: Method will return either an ObsPy
             :class:`~obspy.core.event.Catalog` object, a list of event
@@ -343,9 +357,9 @@ class Client(object):
         data = self._fetch("/services/event/latest", **kwargs)
         # format output
         if format == "list":
-            return self._json2list(data)
+            return self._json2list(data.decode())
         elif format == "catalog":
-            return readEvents(StringIO.StringIO(data), 'QUAKEML')
+            return readEvents(io.BytesIO(data), 'QUAKEML')
         else:
             return data
 
@@ -357,8 +371,9 @@ class Client(object):
         :param uri: Event identifier as either a EMSC event unique identifier,
             e.g. ``"19990817_0000001"`` or a QuakeML-formatted event URI, e.g.
             ``"quakeml:eu.emsc/event#19990817_0000001"``.
-        :type format: ``'list'``, ``'xml'`` or ``'catalog'``, optional
-        :param format: Format of returned results. Defaults to ``'xml'``.
+        :type format: str, optional
+        :param format: Format of returned results. Can be one of ``'list'``,
+            ``'xml'`` or ``'catalog'``. Defaults to ``'xml'``.
         :rtype: :class:`~obspy.core.event.Catalog`, list or str
         :return: Method will return either an ObsPy
             :class:`~obspy.core.event.Catalog` object, a list of event
@@ -404,9 +419,9 @@ class Client(object):
         data = self._fetch("/services/event/detail", **kwargs)
         # format output
         if format == "list":
-            return self._json2list(data)
+            return self._json2list(data.decode())
         elif format == "catalog":
-            return readEvents(StringIO.StringIO(data), 'QUAKEML')
+            return readEvents(io.BytesIO(data), 'QUAKEML')
         else:
             return data
 
@@ -425,8 +440,9 @@ class Client(object):
         :type locations: list of tuples
         :param locations: Each tuple contains a pair of (latitude, longitude)
             of a station.
-        :type model: ``'iasp91'``, ``'ak135'``, or ``'qdt'``, optional
-        :param model: Velocity model, defaults to 'iasp91'.
+        :type model: str, optional
+        :param model: Velocity model, one of ``'iasp91'``, ``'ak135'``, or
+            ``'qdt'``. Defaults to ``'iasp91'``.
         :return: List of dicts containing phase name and arrival times in ms.
 
         .. seealso:: http://www.orfeus-eu.org/wsdl/taup/taup.wsdl
@@ -497,23 +513,24 @@ class Client(object):
         :param starttime: Start date and time.
         :type endtime: :class:`~obspy.core.utcdatetime.UTCDateTime`
         :param endtime: End date and time.
-        :type instruments: boolean, optional
+        :type instruments: bool, optional
         :param instruments: Include instrument data. Default is ``True``.
         :type min_latitude: float, optional
-        :param min_latitude: Minimum latitude, defaults to ``-90.0``
+        :param min_latitude: Minimum latitude, defaults to ``-90.0``.
         :type max_latitude: float, optional
-        :param max_latitude: Maximum latitude, defaults to ``90.0``
+        :param max_latitude: Maximum latitude, defaults to ``90.0``.
         :type min_longitude: float, optional
-        :param min_longitude: Minimum longitude, defaults to ``-180.0``
+        :param min_longitude: Minimum longitude, defaults to ``-180.0``.
         :type max_longitude: float, optional
         :param max_longitude: Maximum longitude, defaults to ``180.0``.
         :type modified_after: :class:`~obspy.core.utcdatetime.UTCDateTime`,
             optional
         :param modified_after: Returns only data modified after given date.
             Default is ``None``, returning all available data.
-        :type format: ``'XML'`` or ``'SUDS'``, optional
-        :param format: Output format. Either returns a XML document or a
-            parsed SUDS object. Defaults to ``SUDS``.
+        :type format: str, optional
+        :param format: Output format, either ``'XML'`` or ``'SUDS'``. Either
+            returns a XML document or a parsed SUDS object. Defaults to
+            ``'SUDS'``.
         :return: XML document or a parsed SUDS object containing inventory
             information.
 
@@ -595,7 +612,7 @@ class Client(object):
             xpath = '*/*/{urn:xml:seisml:orfeus:neries:org}ArclinkInventory'
             inventory = temp.find(xpath)
             # export XML prepending a XML declaration
-            XML_DECLARATION = "<?xml version='1.0' encoding='UTF-8'?>\n\n"
+            XML_DECLARATION = b"<?xml version='1.0' encoding='UTF-8'?>\n\n"
             return XML_DECLARATION + tostring(inventory, encoding='utf-8')
         else:
             # response is a SUDS object
@@ -615,13 +632,13 @@ class Client(object):
         :param location: Location code, e.g. ``'01'``. Location code may
             contain wild cards.
         :type channel: str
-        :param channel: Channel code, e.g. ``'EHE'``. . Channel code may
-            contain wild cards.
+        :param channel: Channel code, e.g. ``'EHE'``. Channel code may contain
+            wild cards.
         :type starttime: :class:`~obspy.core.utcdatetime.UTCDateTime`
         :param starttime: Start date and time.
         :type endtime: :class:`~obspy.core.utcdatetime.UTCDateTime`
         :param endtime: End date and time.
-        :type format: ``'FSEED'`` or ``'MSEED'``, optional
+        :type format: str, optional
         :param format: Output format. Either as full SEED (``'FSEED'``) or
             Mini-SEED (``'MSEED'``) volume. Defaults to ``'MSEED'``.
         :return: ObsPy :class:`~obspy.core.stream.Stream` object.
@@ -632,7 +649,7 @@ class Client(object):
         >>> client = Client(user='test@obspy.org')
         >>> dt = UTCDateTime("2009-04-01T00:00:00")
         >>> st = client.getWaveform("NL", "WIT", "", "BH*", dt, dt+30)
-        >>> print st  # doctest: +ELLIPSIS
+        >>> print(st)  # doctest: +ELLIPSIS
         3 Trace(s) in Stream:
         NL.WIT..BHZ | 2009-04-01T00:00:00.010200Z - ... | 40.0 Hz, 1201 samples
         NL.WIT..BHN | 2009-04-01T00:00:00.010200Z - ... | 40.0 Hz, 1201 samples
@@ -659,7 +676,7 @@ class Client(object):
         This method ensures the storage of the unmodified waveform data
         delivered by the NERIES Web service, e.g. preserving the record based
         quality flags of MiniSEED files which would be neglected reading it
-        with obspy.mseed.
+        with :mod:`obspy.mseed`.
 
         :type filename: str
         :param filename: Name of the output file.
@@ -671,13 +688,13 @@ class Client(object):
         :param location: Location code, e.g. ``'01'``. Location code may
             contain wild cards.
         :type channel: str
-        :param channel: Channel code, e.g. ``'EHE'``. . Channel code may
+        :param channel: Channel code, e.g. ``'EHE'``. Channel code may
             contain wild cards.
         :type starttime: :class:`~obspy.core.utcdatetime.UTCDateTime`
         :param starttime: Start date and time.
         :type endtime: :class:`~obspy.core.utcdatetime.UTCDateTime`
         :param endtime: End date and time.
-        :type format: ``'FSEED'`` or ``'MSEED'``, optional
+        :type format: str, optional
         :param format: Output format. Either as full SEED (``'FSEED'``) or
             Mini-SEED (``'MSEED'``) volume. Defaults to ``'MSEED'``.
         :return: None
@@ -758,16 +775,16 @@ class Client(object):
         response = client.service.dataRetrieve(usertoken, request_ids)
         urls = [r.DownloadToken.DownloadURL for r in response.DataItem]
         # create file handler if a file name is given
-        if isinstance(filename, basestring):
+        if isinstance(filename, (str, native_str)):
             fh = open(filename, "wb")
-        elif isinstance(filename, file):
+        elif hasattr(filename, "write"):
             fh = filename
         else:
             msg = "Parameter filename must be either string or file handler."
             raise TypeError(msg)
         for url in urls:
-            fh.write(urllib2.urlopen(url).read())
-        if isinstance(filename, basestring):
+            fh.write(urllib.request.urlopen(url).read())
+        if isinstance(filename, (str, native_str)):
             fh.close()
         # clean up
         response = client.service.purgeData(usertoken, request_ids)

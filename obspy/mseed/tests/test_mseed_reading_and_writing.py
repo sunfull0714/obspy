@@ -1,16 +1,21 @@
 # -*- coding: utf-8 -*-
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
+from future.utils import native_str
+
 from obspy import UTCDateTime, Stream, Trace, read
 from obspy.core import AttribDict
-from obspy.core.util import NamedTemporaryFile
+from obspy.core.util import NamedTemporaryFile, CatchOutput
 from obspy.mseed import util
 from obspy.mseed.core import readMSEED, writeMSEED, isMSEED
 from obspy.mseed.headers import clibmseed, ENCODINGS
 from obspy.mseed.msstruct import _MSStruct
+
 import copy
+import io
 import numpy as np
 import os
-from StringIO import StringIO
-import sys
 import unittest
 import warnings
 
@@ -59,10 +64,10 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         XXX: This tests is a straight port from an old libmseed test. Redundant
         to some other tests.
         """
-        mseed_file = os.path.join(self.path, 'data', unicode('gaps.mseed'))
+        mseed_file = os.path.join(self.path, 'data', str('gaps.mseed'))
         # list of known data samples
-        starttime = [1199145599915000L, 1199145604035000L, 1199145610215000L,
-                     1199145618455000L]
+        starttime = [1199145599915000, 1199145604035000, 1199145610215000,
+                     1199145618455000]
         datalist = [[-363, -382, -388, -420, -417, -397, -418, -390, -388],
                     [-427, -416, -393, -430, -426, -407, -401, -422, -439],
                     [-396, -399, -387, -384, -393, -380, -365, -394, -426],
@@ -80,10 +85,10 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
             i += 1
         del stream
         # Also test unicode filenames.
-        mseed_filenames = [unicode('BW.BGLD.__.EHE.D.2008.001.first_record'),
-                           unicode('qualityflags.mseed'),
-                           unicode('test.mseed'),
-                           unicode('timingquality.mseed')]
+        mseed_filenames = [str('BW.BGLD.__.EHE.D.2008.001.first_record'),
+                           str('qualityflags.mseed'),
+                           str('test.mseed'),
+                           str('timingquality.mseed')]
         samprate = [200.0, 200.0, 40.0, 200.0]
         station = ['BGLD', 'BGLD', 'HGN', 'BGLD']
         npts = [412, 412, 11947, 41604, 1]
@@ -120,7 +125,7 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
                     this_stream = copy.deepcopy(stream)
                     this_stream[0].data = \
                         np.require(this_stream[0].data,
-                                   dtype=encoding_values[encoding])
+                                   dtype=native_str(encoding_values[encoding]))
                     with NamedTemporaryFile() as tf:
                         temp_file = tf.name
                         writeMSEED(this_stream, temp_file, encoding=encoding,
@@ -145,9 +150,9 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         """
         # Build encoding strings.
         encoding_strings = {}
-        for key, value in ENCODINGS.iteritems():
+        for key, value in ENCODINGS.items():
             encoding_strings[value[0]] = key
-        # Test the encodings and byteorders.
+        # Test the encodings and byte orders.
         path = os.path.join(self.path, "data", "encoding")
         files = ['float32_Float32_bigEndian.mseed',
                  'float32_Float32_littleEndian.mseed',
@@ -164,7 +169,7 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
                  'int32_Steim2_littleEndian.mseed']
         for file in files:
             info = util.getRecordInformation(os.path.join(path, file))
-            if not 'ASCII' in file:
+            if 'ASCII' not in file:
                 encoding = file.split('_')[1].upper()
                 byteorder = file.split('_')[2].split('.')[0]
             else:
@@ -243,7 +248,7 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         """
         filename = os.path.join(self.path, 'data',
                                 'BW.BGLD.__.EHE.D.2008.001.first_10_records')
-        start, end = [1199145599915000L, 1199145620510000L]
+        start, end = [1199145599915000, 1199145620510000]
         # start and endtime
         ms = _MSStruct(filename, init_msrmsf=False)
         ms.read(-1, 0, 1, 0)
@@ -268,7 +273,7 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         self.assertEqual(stream[0].stats.npts, 11947)
         self.assertEqual(stream[0].stats['sampling_rate'], 40.0)
         self.assertEqual(stream[0].stats.get('channel'), 'BHZ')
-        for _i in xrange(5):
+        for _i in range(5):
             self.assertEqual(stream[0].data[_i], data[_i])
 
     def test_readPartialTimewindowFromFile(self):
@@ -347,11 +352,6 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         st6 = readMSEED(testfile, sourcename='*.BLA')
         self.assertEqual(len(st6), 0)
 
-    def test_readFromStringIO(self):
-        """
-        Tests reading from a MiniSEED file in an StringIO object.
-        """
-
     def test_writeIntegers(self):
         """
         Write integer array via L{obspy.mseed.mseed.writeMSEED}.
@@ -359,7 +359,7 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         npts = 1000
         # data array of integers - float won't work!
         np.random.seed(815)  # make test reproducable
-        data = np.random.randint(-1000, 1000, npts).astype('int32')
+        data = np.random.randint(-1000, 1000, npts).astype(np.int32)
         st = Stream([Trace(data=data)])
         with NamedTemporaryFile() as tf:
             tempfile = tf.name
@@ -416,7 +416,7 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         # libmseed instance.
         npts = 6000
         np.random.seed(815)  # make test reproducable
-        data = np.random.randint(-1000, 1000, npts).astype('int32')
+        data = np.random.randint(-1000, 1000, npts).astype(np.int32)
         st = Stream([Trace(data=data)])
         record_lengths = [256, 512, 1024, 2048, 4096, 8192]
         # Loop over some record lengths.
@@ -463,7 +463,7 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         Tests whether the header is correctly written and read.
         """
         np.random.seed(815)  # make test reproducable
-        data = np.random.randint(-1000, 1000, 50).astype('int32')
+        data = np.random.randint(-1000, 1000, 50).astype(np.int32)
         stats = {'network': 'BW', 'station': 'TEST', 'location': 'A',
                  'channel': 'EHE', 'npts': len(data), 'sampling_rate': 200.0,
                  'mseed': {'record_length': 512, 'encoding': 'STEIM2',
@@ -491,17 +491,18 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         """
         npts = 6000
         np.random.seed(815)  # make test reproducable
-        data = np.random.randint(-1000, 1000, npts).astype('int32')
+        data = np.random.randint(-1000, 1000, npts).astype(np.int32)
         # Test all possible combinations of record length, encoding and
-        # byteorder.
+        # byte order.
         record_lengths = [256, 512, 1024, 2048, 4096, 8192]
         byteorders = ['>', '<']
-        encodings = [value[0] for value in ENCODINGS.values()]
+        # Only select encoding that have write support.
+        encodings = [value[0] for value in ENCODINGS.values() if value[3]]
         np_encodings = {}
         # Special handling for ASCII encoded files.
         for value in ENCODINGS.values():
             if value[0] == 'ASCII':
-                np_encodings[value[0]] = np.dtype("|S1")
+                np_encodings[value[0]] = np.dtype(native_str("|S1"))
             else:
                 np_encodings[value[0]] = value[2]
         st = Stream([Trace(data=data)])
@@ -580,18 +581,20 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         # Float64, Float32, Int32, Int24, Int16, Char
         encodings = {5: "f8", 4: "f4", 3: "i4", 0: "S1", 1: "i2"}
         byteorders = {0: '<', 1: '>'}
-        for byteorder, btype in byteorders.iteritems():
-            for encoding, dtype in encodings.iteritems():
+        for byteorder, btype in byteorders.items():
+            for encoding, dtype in encodings.items():
                 # Convert data to floats and write them again
-                st[0].data = data_copy.astype(dtype)
+                st[0].data = data_copy.astype(native_str(dtype))
                 with NamedTemporaryFile() as tf:
                     tempfile = tf.name
                     st.write(tempfile, format="MSEED", encoding=encoding,
                              reclen=256, byteorder=byteorder)
                     # Read the first record of data without header not using
                     # ObsPy
-                    s = open(tempfile, "rb").read()
-                    data = np.fromstring(s[56:256], dtype=btype + dtype)
+                    with open(tempfile, "rb") as fp:
+                        s = fp.read()
+                    data = np.fromstring(s[56:256],
+                                         dtype=native_str(btype + dtype))
                     np.testing.assert_array_equal(data, st[0].data[:len(data)])
                     # Read the binary chunk of data with ObsPy
                     st2 = read(tempfile)
@@ -602,7 +605,7 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         Tests writing small ASCII strings.
         """
         st = Stream()
-        st.append(Trace(data=np.fromstring("A" * 8, "|S1")))
+        st.append(Trace(data=np.fromstring("A" * 8, native_str("|S1"))))
         with NamedTemporaryFile() as tf:
             tempfile = tf.name
             st.write(tempfile, format="MSEED")
@@ -617,7 +620,8 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
             data = np.random.randint(-1000, 1000, 500)
             for dtype in ["i2", "i4", "f4", "f8", "S1"]:
                 for enc in ["<", ">", "="]:
-                    st1.append(Trace(data=data.astype(np.dtype(enc + dtype))))
+                    typed_data = data.astype(np.dtype(native_str(enc + dtype)))
+                    st1.append(Trace(data=typed_data))
             # this will raise a UserWarning - ignoring for test
             with warnings.catch_warnings(record=True):
                 warnings.simplefilter('ignore', UserWarning)
@@ -631,8 +635,8 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
                                          str(tr.dtype.itemsize),
                                          dtype)
                         # byte order is always native (=)
-                        np.testing.assert_array_equal(tr,
-                                                      data.astype("=" + dtype))
+                        typed_data = data.astype(native_str("=" + dtype))
+                        np.testing.assert_array_equal(tr, typed_data)
 
     def test_enforceSteim2WithSteim1asEncoding(self):
         """
@@ -658,29 +662,31 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         path = os.path.join(self.path, "data", "encoding")
         # Dictionary. The key is the filename, the value a tuple: dtype,
         # sampletype, encoding, content
-        def_content = np.arange(1, 51, dtype='int32')
+        def_content = np.arange(1, 51, dtype=np.int32)
         files = {
             os.path.join(path, "smallASCII.mseed"):
-            ('|S1', 'a', 0, np.fromstring('ABCDEFGH', dtype='|S1')),
+            (native_str('|S1'), 'a', 0,
+             np.fromstring('ABCDEFGH', dtype=native_str('|S1'))),
             # Tests all ASCII letters.
             os.path.join(path, "fullASCII.mseed"):
-            ('|S1', 'a', 0, np.fromstring(
+            (native_str('|S1'), 'a', 0, np.fromstring(
                 """ !"#$%&'()*+,-./""" +
                 """0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`""" +
-                """abcdefghijklmnopqrstuvwxyz{|}~""", dtype='|S1')),
+                """abcdefghijklmnopqrstuvwxyz{|}~""",
+                dtype=native_str('|S1'))),
             # Note: int16 array will also be returned as int32.
             os.path.join(path, "int16_INT16.mseed"):
-            ('int32', 'i', 1, def_content.astype('int16')),
+            (np.int32, 'i', 1, def_content.astype(np.int16)),
             os.path.join(path, "int32_INT32.mseed"):
-            ('int32', 'i', 3, def_content),
+            (np.int32, 'i', 3, def_content),
             os.path.join(path, "int32_Steim1.mseed"):
-            ('int32', 'i', 10, def_content),
+            (np.int32, 'i', 10, def_content),
             os.path.join(path, "int32_Steim2.mseed"):
-            ('int32', 'i', 11, def_content),
+            (np.int32, 'i', 11, def_content),
             os.path.join(path, "float32_Float32.mseed"):
-            ('float32', 'f', 4, def_content.astype('float32')),
+            (np.float32, 'f', 4, def_content.astype(np.float32)),
             os.path.join(path, "float64_Float64.mseed"):
-            ('float64', 'd', 5, def_content.astype('float64'))
+            (np.float64, 'd', 5, def_content.astype(np.float64))
         }
         # Loop over all files and read them.
         for file in files.keys():
@@ -692,8 +698,8 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
                 np.testing.assert_array_equal(st[0].data, files[file][3])
                 # Check the dtype.
                 self.assertEqual(st[0].data.dtype, files[file][0])
-                # Check byteorder. Should always be native byteorder. Byteorder
-                # does not apply to ASCII arrays.
+                # Check byte order. Should always be native byte order. Byte
+                # order does not apply to ASCII arrays.
                 if 'ASCII' in cur_file:
                     self.assertEqual(st[0].data.dtype.byteorder, '|')
                 else:
@@ -743,7 +749,7 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         write it in here.
         """
         np.random.seed(800)  # make test reproducable
-        data = np.random.randint(-1000, 1000, 50).astype('int32')
+        data = np.random.randint(-1000, 1000, 50).astype(np.int32)
         # Create 4 different traces with 4 different dataqualities.
         stats1 = {'network': 'BW', 'station': 'TEST', 'location': 'A',
                   'channel': 'EHE', 'npts': len(data), 'sampling_rate': 200.0,
@@ -856,16 +862,20 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         """
         npts = 1000
         np.random.seed(815)  # make test reproducable
-        data = np.random.randn(npts).astype('float64') * 1e3 + .5
+        data = np.random.randn(npts).astype(np.float64) * 1e3 + .5
         st = Stream([Trace(data=data)])
         # Loop over some record lengths.
-        for encoding, value in ENCODINGS.iteritems():
+        for encoding, value in ENCODINGS.items():
+            # Skip encodings that cannot be written.
+            if not value[3]:
+                continue
+
             seed_dtype = value[2]
             # Special handling for the ASCII dtype. NumPy 1.7 changes the
             # default dtype of numpy.string_ from "|S1" to "|S32". Enforce
             # "|S1|" here to be consistent across NumPy versions.
             if encoding == 0:
-                seed_dtype = "|S1"
+                seed_dtype = native_str("|S1")
             with NamedTemporaryFile() as tf:
                 tempfile = tf.name
                 # Write it once with the encoding key and once with the value.
@@ -890,12 +900,12 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         """
         # one samples
         tr = Trace(data=np.ones(1))
-        tempfile = NamedTemporaryFile().name
-        tr.write(tempfile, format="MSEED")
-        st = read(tempfile)
-        self.assertEqual(len(st), 1)
-        self.assertEqual(len(st[0]), 1)
-        os.remove(tempfile)
+        with NamedTemporaryFile() as tf:
+            tempfile = tf.name
+            tr.write(tempfile, format="MSEED")
+            st = read(tempfile)
+            self.assertEqual(len(st), 1)
+            self.assertEqual(len(st[0]), 1)
         # two samples
         tr = Trace(data=np.ones(2))
         with NamedTemporaryFile() as tf:
@@ -909,8 +919,8 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         """
         Tests writing empty Traces should raise an exception.
         """
-        tr1 = Trace(data=np.array([12], dtype='int32'))
-        tr2 = Trace(data=np.array([], dtype='int32'))
+        tr1 = Trace(data=np.array([12], dtype=np.int32))
+        tr2 = Trace(data=np.array([], dtype=np.int32))
         st = Stream([tr1, tr2])
         with NamedTemporaryFile() as tf:
             tempfile = tf.name
@@ -926,11 +936,12 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
         """
         filename = os.path.join(self.path, 'data', 'timingquality.mseed')
         st = read(filename, details=True)
-        dt = np.dtype([('npts', 'i4'), ('qual', 'i4')])
+        dt = np.dtype([(native_str('npts'), native_str('i4')),
+                       (native_str('qual'), native_str('i4'))])
         res = np.array([(tr.stats.npts, tr.stats.mseed.timing_quality)
                         for tr in st], dtype=dt)
         one_big_st = read(filename)  # do not read timing quality info
-        # timing_quality splits the stream additionaly when timing quality
+        # timing_quality splits the stream additionally when timing quality
         # changes, sum of all points in stream must stay the same
         self.assertEqual(one_big_st[0].stats.npts, res[:]['npts'].sum())
         # timing quality must be inside the range of 0 to 100 [%]
@@ -965,20 +976,108 @@ class MSEEDReadingAndWritingTestCase(unittest.TestCase):
                                 'BW.UH3.__.EHZ.D.2010.171.first_record')
 
         # Catch output.
-        sys.stdout = StringIO()
-        sys.stderr = StringIO()
-        st = read(filename, verbose=2)
-        sys.stdout.seek(0, 0)
-        stdout = sys.stdout.read()
-        sys.stdout.close()
-        sys.stderr.close()
-        sys.stdout = sys.__stdout__
-        sys.stderr = sys.__stderr__
+        with CatchOutput() as out:
+            st = read(filename, verbose=2)
 
-        self.assertTrue("calling msr_parse with" in stdout)
+        self.assertTrue("calling msr_parse with" in out.stdout)
         self.assertTrue("buflen=512, reclen=-1, dataflag=0, verbose=2" in
-                        stdout)
+                        out.stdout)
         self.assertEqual(st[0].stats.station, 'UH3')
+
+    def test_writing_with_some_encoding_fails(self):
+        """
+        Writing with some encoding fails as libmseed does not support those.
+        Make sure an appropriate error is raised.
+        """
+        tr = read()[0]
+        tr.data = tr.data[:10]
+
+        for encoding, value in ENCODINGS.items():
+            # Convert the data to the appropriate type to make it does not
+            # fail because of that.
+            tr2 = tr.copy()
+            tr2.data = np.require(tr2.data, dtype=value[2])
+
+            buf = io.BytesIO()
+
+            # Test writing by forcing the encoding.
+            # Should not fail with write support.
+            if value[3]:
+                # Test with integer code and string name.
+                tr2.write(buf, format="mseed", encoding=encoding)
+                tr2.write(buf, format="mseed", encoding=value[0])
+            # Should fail without write support.
+            else:
+                # Test with integer code and string name.
+                self.assertRaises(ValueError, tr2.write, buf,
+                                  format="mseed", encoding=encoding)
+                self.assertRaises(ValueError, tr2.write, buf,
+                                  format="mseed", encoding=value[0])
+
+            # Test again by setting the encoding on the trace stats.
+            tr2.stats.mseed = AttribDict()
+            tr2.stats.mseed.encoding = encoding
+            if value[3]:
+                tr2.write(buf, format="mseed")
+            else:
+                self.assertRaises(ValueError, tr2.write, buf, format="mseed")
+            # Again with setting the string code.
+            tr2.stats.mseed.encoding = value[0]
+            if value[3]:
+                tr2.write(buf, format="mseed")
+            else:
+                self.assertRaises(ValueError, tr2.write, buf, format="mseed")
+
+    def test_reading_geoscope_16bit_4bit_exponent_format(self):
+        """
+        Tests reading miniseed data with the GEOSCOPE Multiplexed 16 bit
+        ranged, 4 bit exponent encoding.
+        """
+        tr = read(os.path.join(self.path, "data",
+                               "GEOSCOPE16_4_encoding.mseed"))[0]
+
+        self.assertEqual(tr.stats.mseed.encoding, "GEOSCOPE16_4")
+        self.assertEqual(tr.data.dtype, np.float32)
+        # Test data is from the IRIS ASCII timeseries service.
+        self.assertTrue(np.allclose(
+            tr.data[:5],
+            np.array([-1.1015625, -1.11328125, -1.109375, -1.12890625,
+                      -1.1171875]),
+            rtol=1E-5))
+
+    def test_reading_SRO_format(self):
+        """
+        Tests reading miniseed data with the SRO encoding.
+        """
+        tr = read(os.path.join(self.path, "data",
+                               "SRO_encoding.mseed")).select(component="Z")[0]
+        self.assertEqual(tr.stats.mseed.encoding, "SRO")
+        self.assertEqual(tr.data.dtype, np.int32)
+        # Test data is from the IRIS ASCII timeseries service.
+        self.assertTrue(np.allclose(
+            tr.data[:5], np.array([126, 67, -11, -95, -167]), rtol=1E-5))
+
+    def test_reading_DWWSSN_format(self):
+        """
+        Tests reading miniseed data with the DWWSSN encoding.
+        """
+        tr = read(os.path.join(self.path, "data", "DWWSSN_encoding.mseed"))[0]
+        self.assertEqual(tr.stats.mseed.encoding, "DWWSSN")
+        self.assertEqual(tr.data.dtype, np.int32)
+        # Test data is from the IRIS ASCII timeseries service.
+        self.assertTrue(np.allclose(
+            tr.data[:5], np.array([-38, -38, -36, -37, -36]), rtol=1E-5))
+
+    def test_reading_CDSN_format(self):
+        """
+        Tests reading miniseed data with the CDSN encoding.
+        """
+        tr = read(os.path.join(self.path, "data", "CDSN_encoding.mseed"))[0]
+        self.assertEqual(tr.stats.mseed.encoding, "CDSN")
+        self.assertEqual(tr.data.dtype, np.int32)
+        # Test data is from the IRIS ASCII timeseries service.
+        self.assertTrue(np.allclose(
+            tr.data[:5], np.array([294, 32, 26, 285, 389]), rtol=1E-5))
 
 
 def suite():

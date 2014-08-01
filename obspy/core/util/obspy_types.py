@@ -8,6 +8,15 @@ Various types used in ObsPy.
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
+
+try:
+    import __builtin__
+    list = __builtin__.list
+except ImportError:
+    pass
 
 # try native OrderDict implementations first (Python >= 2.7.x)
 try:
@@ -87,9 +96,9 @@ except ImportError:
             if not self:
                 raise KeyError('dictionary is empty')
             if last:
-                key = reversed(self).next()
+                key = next(reversed(self))
             else:
-                key = iter(self).next()
+                key = next(iter(self))
             value = self.pop(key)
             return key, value
 
@@ -118,7 +127,7 @@ except ImportError:
         def __repr__(self):
             if not self:
                 return '%s()' % (self.__class__.__name__,)
-            return '%s(%r)' % (self.__class__.__name__, self.items())
+            return '%s(%r)' % (self.__class__.__name__, list(self.items()))
 
         def copy(self):
             return self.__class__(self)
@@ -159,14 +168,14 @@ class Enum(object):
 
     There are different ways to access the correct enum values:
 
-        >>> units.get('m/s')
-        'm/s'
-        >>> units['S']
-        's'
-        >>> units.OTHER
-        'other'
-        >>> units[3]
-        'm/(s*s)'
+        >>> print(units.get('m/s'))
+        m/s
+        >>> print(units['S'])
+        s
+        >>> print(units.OTHER)
+        other
+        >>> print(units[3])
+        m/(s*s)
         >>> units.xxx  # doctest: +ELLIPSIS
         Traceback (most recent call last):
         ...
@@ -185,26 +194,26 @@ class Enum(object):
 
     Calling with a value will either return the mapped enum value or ``None``:
 
-        >>> units("M*s")
-        'm*s'
+        >>> print(units("M*s"))
+        m*s
         >>> units('xxx')
-        >>> units(5)
-        'other'
+        >>> print(units(5))
+        other
 
     The following enum allows replacing certain entries:
 
         >>> units2 = Enum(["m", "s", "m/s", "m/(s*s)", "m*s", "other"],
         ...               replace={'meter': 'm'})
-        >>> units2('m')
-        'm'
-        >>> units2('meter')
-        'm'
+        >>> print(units2('m'))
+        m
+        >>> print(units2('meter'))
+        m
     """
     # marker needed for for usage within ABC classes
     __isabstractmethod__ = False
 
     def __init__(self, enums, replace={}):
-        self.__enums = OrderedDict(zip([str(e).lower() for e in enums], enums))
+        self.__enums = OrderedDict((str(e).lower(), e) for e in enums)
         self.__replace = replace
 
     def __call__(self, enum):
@@ -215,7 +224,7 @@ class Enum(object):
 
     def get(self, key):
         if isinstance(key, int):
-            return self.__enums.values()[key]
+            return list(self.__enums.values())[key]
         if key in self._Enum__replace:
             return self._Enum__replace[key.lower()]
         return self.__enums.__getitem__(key.lower())
@@ -238,24 +247,24 @@ class Enum(object):
         return value.lower() in self.__enums
 
     def values(self):
-        return self.__enums.values()
+        return list(self.__enums.values())
 
     def keys(self):
-        return self.__enums.keys()
+        return list(self.__enums.keys())
 
     def items(self):
-        return self.__enums.items()
+        return list(self.__enums.items())
 
     def iteritems(self):
-        return self.__enums.iteritems()
+        return iter(self.__enums.items())
 
     def __str__(self):
         """
         >>> enum = Enum(["c", "a", "b"])
-        >>> print enum
+        >>> print(enum)
         Enum(["c", "a", "b"])
         """
-        keys = self.__enums.keys()
+        keys = list(self.__enums.keys())
         return "Enum([%s])" % ", ".join(['"%s"' % _i for _i in keys])
 
 

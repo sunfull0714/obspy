@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
 
 from obspy.xseed.blockette import Blockette
 from obspy.xseed.fields import Float, Integer, FixedString, Loop
@@ -111,4 +114,4 @@ class Blockette054(Blockette):
                     formatRESP(self.denominator_coefficient, 6),
                     formatRESP(self.denominator_error, 6))
         string += '#\t\t\n'
-        return string
+        return string.encode()

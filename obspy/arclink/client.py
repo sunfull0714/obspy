@@ -8,18 +8,22 @@ ArcLink/WebDC client for ObsPy.
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA @UnusedWildImport
+from future.utils import native_str
 
-from fnmatch import fnmatch
-from lxml import objectify, etree
 from obspy import read, UTCDateTime
 from obspy.core.util import AttribDict, complexifyString
 from obspy.core.util.decorator import deprecated_keywords
+
+from fnmatch import fnmatch
+import io
+from lxml import objectify, etree
 from telnetlib import Telnet
 import os
-import StringIO
 import time
 import warnings
-
 
 DCID_KEY_FILE = os.path.join(os.getenv('HOME') or '', 'dcidpasswords.txt')
 MAX_REQUESTS = 50
@@ -80,6 +84,8 @@ class Client(object):
     :type command_delay: float, optional
     :param command_delay: Delay between each command send to the ArcLink server
         (default is ``0``).
+    :var status_delay: Delay in seconds between each status request (default is
+        ``0.5`` seconds).
 
     .. rubric:: Notes
 
@@ -137,7 +143,8 @@ class Client(object):
             dcid_key_file = DCID_KEY_FILE
         # parse dcid_key_file
         try:
-            lines = open(dcid_key_file, 'rt').readlines()
+            with open(dcid_key_file, 'rt') as fp:
+                lines = fp.readlines()
         except:
             pass
         else:
@@ -159,38 +166,49 @@ class Client(object):
                     self.dcid_keys[key] = value.strip()
 
     def _reconnect(self):
-        self._client.open(self._client.host, self._client.port,
-                          self._client.timeout)
+        self._client.close()
+        try:
+            self._client.open(native_str(self._client.host),
+                              self._client.port,
+                              self._client.timeout)
+        except:
+            # Python 2.6: port needs to be native int or string -> not long
+            self._client.open(native_str(self._client.host),
+                              native_str(self._client.port),
+                              self._client.timeout)
 
     def _writeln(self, buffer):
+        # Py3k: might be confusing, _writeln accepts str
+        # readln accepts bytes (but was smalles change like that)
         if self.command_delay:
             time.sleep(self.command_delay)
-        self._client.write(buffer + '\r\n')
+        b_buffer = (buffer + '\r\n').encode()
+        self._client.write(b_buffer)
         if self.debug:
-            print('>>> ' + buffer)
+            print((b'>>> ' + b_buffer))
 
-    def _readln(self, value=''):
-        line = self._client.read_until(value + '\r\n', self.timeout)
+    def _readln(self, value=b''):
+        line = self._client.read_until(value + b'\r\n', self.timeout)
         line = line.strip()
         if value not in line:
             msg = "Timeout waiting for expected %s, got %s"
-            raise ArcLinkException(msg % (value, line))
+            raise ArcLinkException(msg % (value, line.decode()))
         if self.debug:
-            print('... ' + line)
+            print((b'... ' + line))
         return line
 
     def _hello(self):
         self._reconnect()
         self._writeln('HELLO')
-        self.version = self._readln(')')
+        self.version = self._readln(b')')
         self.node = self._readln()
         if self.password:
             self._writeln('USER %s %s' % (self.user, self.password))
         else:
             self._writeln('USER %s' % self.user)
-        self._readln('OK')
+        self._readln(b'OK')
         self._writeln('INSTITUTION %s' % self.institution)
-        self._readln('OK')
+        self._readln(b'OK')
 
     def _bye(self):
         self._writeln('BYE')
@@ -261,7 +279,7 @@ class Client(object):
         out += ' '.join([str(i) for i in request_data[2:]])
         self._writeln(out)
         self._writeln('END')
-        self._readln('OK')
+        self._readln(b'OK')
         # get status id
         while True:
             status = self._readln()
@@ -279,8 +297,8 @@ class Client(object):
         _old_xml_doc = None
         while True:
             self._writeln('STATUS %d' % req_id)
-            xml_doc = self._readln('END')
-            if 'ready="true"' in xml_doc:
+            xml_doc = self._readln(b'END')
+            if b'ready="true"' in xml_doc:
                 break
             # check if status messages changes over time
             if _old_xml_doc == xml_doc:
@@ -296,9 +314,9 @@ class Client(object):
             # wait a bit
             time.sleep(self.status_delay)
         # check for errors
-        for err_code in ['DENIED', 'CANCELLED', 'CANCEL', 'ERROR', 'RETRY',
-                         'WARN', 'UNSET']:
-            err_str = 'status="%s"' % (err_code)
+        for err_code in (b'DENIED', b'CANCELLED', b'CANCEL', b'ERROR',
+                         b'RETRY', b'WARN', b'UNSET'):
+            err_str = b'status="' + err_code + b'"'
             if err_str in xml_doc:
                 # cleanup
                 self._writeln('PURGE %d' % req_id)
@@ -307,19 +325,19 @@ class Client(object):
                 xml_doc = objectify.fromstring(xml_doc[:-3])
                 msg = xml_doc.request.volume.line.get('message')
                 raise ArcLinkException("%s %s" % (err_code, msg))
-        if 'status="NODATA"' in xml_doc:
+        if b'status="NODATA"' in xml_doc:
             # cleanup
             self._writeln('PURGE %d' % req_id)
             self._bye()
             raise ArcLinkException('No data available')
-        elif 'id="NODATA"' in xml_doc or 'id="ERROR"' in xml_doc:
+        elif b'id="NODATA"' in xml_doc or b'id="ERROR"' in xml_doc:
             # cleanup
             self._writeln('PURGE %d' % req_id)
             self._bye()
             # parse XML for error message
             xml_doc = objectify.fromstring(xml_doc[:-3])
             raise ArcLinkException(xml_doc.request.volume.line.get('message'))
-        elif '<line content' not in xml_doc:
+        elif b'<line content' not in xml_doc:
             # safeguard for not covered status messages
             self._writeln('PURGE %d' % req_id)
             self._bye()
@@ -327,25 +345,25 @@ class Client(object):
             raise ArcLinkException(msg)
         self._writeln('DOWNLOAD %d' % req_id)
         try:
-            fd = self._client.get_socket().makefile('rb+')
+            fd = self._client.get_socket().makefile('rb')
             length = int(fd.readline(100).strip())
-            data = ''
+            data = b''
             while len(data) < length:
                 buf = fd.read(min(4096, length - len(data)))
                 data += buf
             buf = fd.readline(100).strip()
-            if buf != "END" or len(data) != length:
+            if buf != b"END" or len(data) != length:
                 raise Exception('Wrong length!')
             if self.debug:
-                if data.startswith('<?xml'):
+                if data.startswith(b'<?xml'):
                     print(data)
                 else:
-                    print("%d bytes of data read" % len(data))
+                    print(("%d bytes of data read" % len(data)))
         finally:
             self._writeln('PURGE %d' % req_id)
             self._bye()
         # check for encryption
-        if 'encrypted="true"' in xml_doc:
+        if b'encrypted="true"' in xml_doc:
             # extract dcid
             xml_doc = objectify.fromstring(xml_doc[:-3])
             dcid = xml_doc.request.volume.get('dcid')
@@ -381,7 +399,7 @@ class Client(object):
         :param starttime: Start date and time.
         :type endtime: :class:`~obspy.core.utcdatetime.UTCDateTime`
         :param endtime: End date and time.
-        :type format: ``'FSEED'`` or ``'MSEED'``, optional
+        :type format: str, optional
         :param format: Output format. Either as full SEED (``'FSEED'``) or
             Mini-SEED (``'MSEED'``) volume. Defaults to ``'MSEED'``.
         :type compressed: bool, optional
@@ -420,7 +438,7 @@ class Client(object):
         # handle deprecated keywords - one must be True to enable metadata
         metadata = metadata or kwargs.get('getPAZ', False) or \
             kwargs.get('getCoordinates', False)
-        file_stream = StringIO.StringIO()
+        file_stream = io.BytesIO()
         self.saveWaveform(file_stream, network, station, location, channel,
                           starttime, endtime, format=format,
                           compressed=compressed, route=route)
@@ -494,7 +512,7 @@ class Client(object):
         :param starttime: Start date and time.
         :type endtime: :class:`~obspy.core.utcdatetime.UTCDateTime`
         :param endtime: End date and time.
-        :type format: ``'FSEED'`` or ``'MSEED'``, optional
+        :type format: str, optional
         :param format: Output format. Either as full SEED (``'FSEED'``) or
             Mini-SEED (``'MSEED'``) volume. Defaults to ``'MSEED'``.
 
@@ -526,7 +544,7 @@ class Client(object):
                    "'FSEED'")
             raise ArcLinkException(msg)
         # check parameters
-        is_name = isinstance(filename, basestring)
+        is_name = isinstance(filename, (str, native_str))
         if not is_name and not hasattr(filename, "write"):
             msg = "Parameter filename must be either string or file handler."
             raise TypeError(msg)
@@ -544,7 +562,7 @@ class Client(object):
         # fetch waveform
         data = self._fetch(rtype, rdata, route=route)
         # check if data is still encrypted
-        if data.startswith('Salted__'):
+        if data.startswith(b'Salted__'):
             # set "good" filenames
             if is_name:
                 if compressed and not filename.endswith('.bz2.openssl'):
@@ -671,8 +689,7 @@ class Client(object):
             else:
                 out.extend(temp)
         # sort by priority
-        out.sort(lambda x, y: cmp(x.get('priority', 1000),
-                                  y.get('priority', 1000)))
+        out = sorted(out, key=lambda x: x.get('priority', 1000))
         return out
 
     def getQC(self, network, station, location, channel, starttime,
@@ -961,7 +978,7 @@ class Client(object):
         """
         Writes response information into a file.
 
-        :type filename: str or file like object
+        :type filename: str or file
         :param filename: Name of the output file or open file like object.
         :type network: str
         :param network: Network code, e.g. ``'BW'``.
@@ -975,9 +992,9 @@ class Client(object):
         :param starttime: Start date and time.
         :type endtime: :class:`~obspy.core.utcdatetime.UTCDateTime`
         :param endtime: End date and time.
-        :type format: ``'SEED'``, optional
-        :param format: Output format. Currently only Dataless SEED is
-            supported.
+        :type format: str, optional
+        :param format: Output format. Currently only Dataless SEED (``'SEED'``)
+            is supported.
         :return: None
 
         .. rubric:: Example
@@ -1004,8 +1021,8 @@ class Client(object):
         if hasattr(filename, "write") and hasattr(filename.write, "__call__"):
             filename.write(data)
         else:
-            with open(filename, "wb") as open_file:
-                open_file.write(data)
+            with open(filename, "wb") as fp:
+                fp.write(data)
 
     def getInventory(self, network, station='*', location='*', channel='*',
                      starttime=UTCDateTime(), endtime=UTCDateTime(),
@@ -1237,7 +1254,7 @@ class Client(object):
                                            stream.get('code', ''),
                                            comp.get('code', '')])
                         # write channel entry
-                        if not id in data:
+                        if id not in data:
                             data[id] = []
                         temp = AttribDict()
                         data[id].append(temp)

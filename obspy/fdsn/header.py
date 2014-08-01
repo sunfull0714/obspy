@@ -9,6 +9,10 @@ Header files for the FDSN webservice.
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
+
 from obspy import __version__, UTCDateTime
 
 import platform
@@ -19,6 +23,7 @@ class FDSNException(Exception):
 
 
 URL_MAPPINGS = {"IRIS": "http://service.iris.edu",
+                "ORFEUS": "http://www.orfeus-eu.org",
                 "USGS": "http://comcat.cr.usgs.gov",
                 "RESIF": "http://ws.resif.fr",
                 "NCEDC": "http://service.ncedc.org",
@@ -116,7 +121,7 @@ DEFAULT_TYPES = {
     "includeallorigins": bool,
     "includeallmagnitudes": bool,
     "includearrivals": bool,
-    "eventid": int,
+    "eventid": str,
     "limit": int,
     "offset": int,
     "orderby": str,

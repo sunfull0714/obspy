@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
 
 from obspy.core.util.base import getMatplotlibVersion, NamedTemporaryFile
 from obspy.core.util.testing import ImageComparison, \
@@ -64,7 +67,7 @@ class UtilBaseTestCase(unittest.TestCase):
         Tests the automatic closing/deleting of NamedTemporaryFile using the
         context manager.
         """
-        content = "burn after writing"
+        content = b"burn after writing"
         # write something to tempfile and check closing/deletion afterwards
         with NamedTemporaryFile() as tf:
             filename = tf.name
@@ -75,7 +78,7 @@ class UtilBaseTestCase(unittest.TestCase):
             filename = tf.name
             tf.write(content)
             tf.close()
-            with open(filename) as fh:
+            with open(filename, 'rb') as fh:
                 tmp_content = fh.read()
         self.assertEqual(content, tmp_content)
         self.assertFalse(os.path.exists(filename))

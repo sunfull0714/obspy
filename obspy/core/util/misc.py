@@ -8,6 +8,10 @@ Various additional utilities for ObsPy.
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
+
 from contextlib import contextmanager
 import os
 import sys
@@ -26,6 +30,7 @@ import math
 # We use this e.g. in seihub.client.getWaveform to request two samples more on
 # both start and end to cut to the samples that really are nearest to requested
 # start/endtime afterwards.
+
 BAND_CODE = {'F': 1000.0,
              'G': 1000.0,
              'D': 250.0,
@@ -130,7 +135,7 @@ def flatnotmaskedContiguous(a):
     Find contiguous unmasked data in a masked array along the given axis.
 
     This function is taken from
-    :func:`numpy.ma.extras.flatnotmasked_contiguous`.
+    :func:`numpy.ma.flatnotmasked_contiguous`.
 
     Copyright (c) Pierre Gerard-Marchant
     """
@@ -175,7 +180,7 @@ def toIntOrZero(value):
 
     :param value: Arbitrary data type.
     :rtype: int
-numpy.version.version
+
     .. rubric:: Example
 
     >>> toIntOrZero("12")
@@ -190,29 +195,29 @@ numpy.version.version
         return 0
 
 
-# import numpy loadtxt and check if ndlim parameter is available
+# import numpy loadtxt and check if ndmin parameter is available
 try:
     from numpy import loadtxt
-    loadtxt(np.array([]), ndlim=1)
+    loadtxt(np.array([0]), ndmin=1)
 except TypeError:
     # otherwise redefine loadtxt
     def loadtxt(*args, **kwargs):
         """
-        Replacement for older numpy.loadtxt versions not supporting ndlim
+        Replacement for older numpy.loadtxt versions not supporting ndmin
         parameter.
         """
-        if not 'ndlim' in kwargs:
+        if 'ndmin' not in kwargs:
             return np.loadtxt(*args, **kwargs)
-        # ok we got a ndlim param
-        if kwargs['ndlim'] != 1:
+        # ok we got a ndmin param
+        if kwargs['ndmin'] != 1:
             # for now we support only one dimensional arrays
             raise NotImplementedError('Upgrade your NumPy version!')
-        del kwargs['ndlim']
+        del kwargs['ndmin']
         dtype = kwargs.get('dtype', None)
         # lets get the data
         try:
             data = np.loadtxt(*args, **kwargs)
-        except IOError, e:
+        except IOError as e:
             # raises in older versions if no data could be read
             if 'reached before encountering data' in str(e):
                 # return empty array
@@ -239,12 +244,14 @@ def get_untracked_files_from_git():
                   cwd=dir_, stdout=PIPE, stderr=PIPE)
         p.stderr.close()
         git_root_dir = p.stdout.readlines()[0].strip()
+        p.stdout.close()
         if git_root_dir != dir_:
             raise Exception
         p = Popen(['git', 'status', '-u', '--porcelain'],
                   cwd=dir_, stdout=PIPE, stderr=PIPE)
         p.stderr.close()
         stdout = p.stdout.readlines()
+        p.stdout.close()
         files = [os.path.abspath(os.path.join(dir_, line.split()[1].strip()))
                  for line in stdout
                  if line.startswith("??")]
@@ -284,32 +291,32 @@ def wrap_long_string(string, line_length=79, prefix="",
 
     >>> string = ("Retrieve an event based on the unique origin "
     ...           "ID numbers assigned by the IRIS DMC")
-    >>> print wrap_long_string(string, prefix="\t*\t > ",
-    ...                        line_length=50)  # doctest: +SKIP
+    >>> print(wrap_long_string(string, prefix="\t*\t > ",
+    ...                        line_length=50))  # doctest: +SKIP
             *        > Retrieve an event based on
             *        > the unique origin ID numbers
             *        > assigned by the IRIS DMC
-    >>> print wrap_long_string(string, prefix="\t* ",
-    ...                        line_length=70)  # doctest: +SKIP
+    >>> print(wrap_long_string(string, prefix="\t* ",
+    ...                        line_length=70))  # doctest: +SKIP
             * Retrieve an event based on the unique origin ID
             * numbers assigned by the IRIS DMC
-    >>> print wrap_long_string(string, prefix="\t \t  > ",
+    >>> print(wrap_long_string(string, prefix="\t \t  > ",
     ...                        special_first_prefix="\t*\t",
-    ...                        line_length=50)  # doctest: +SKIP
+    ...                        line_length=50))  # doctest: +SKIP
             *        Retrieve an event based on
                      > the unique origin ID numbers
                      > assigned by the IRIS DMC
     >>> problem_string = ("Retrieve_an_event_based_on_the_unique "
     ...                   "origin ID numbers assigned by the IRIS DMC")
-    >>> print wrap_long_string(problem_string, prefix="\t\t",
-    ...                        line_length=40, sloppy=True)  # doctest: +SKIP
+    >>> print(wrap_long_string(problem_string, prefix="\t\t",
+    ...                        line_length=40, sloppy=True))  # doctest: +SKIP
                     Retrieve_an_event_based_on_the_unique
                     origin ID
                     numbers
                     assigned by
                     the IRIS DMC
-    >>> print wrap_long_string(problem_string, prefix="\t\t",
-    ...                        line_length=40)  # doctest: +SKIP
+    >>> print(wrap_long_string(problem_string, prefix="\t\t",
+    ...                        line_length=40))  # doctest: +SKIP
                     Retrieve_an_event_base\
                     d_on_the_unique origin
                     ID numbers assigned by
@@ -373,9 +380,9 @@ def CatchOutput():
     >>> with CatchOutput() as out:  # doctest: +SKIP
     ...    os.system('echo "mystdout"')
     ...    os.system('echo "mystderr" >&2')
-    >>> print out.stdout  # doctest: +SKIP
+    >>> print(out.stdout)  # doctest: +SKIP
     mystdout
-    >>> print out.stderr  # doctest: +SKIP
+    >>> print(out.stderr)  # doctest: +SKIP
     mystderr
     """
     stdout_file, stdout_filename = tempfile.mkstemp(prefix="obspy-")
@@ -460,12 +467,12 @@ def factorize_int(x):
     if x == 1:
         return [1]
     factors, limit, check, num = [], int(math.sqrt(x)) + 1, 2, x
-    for check in xrange(2, limit):
+    for check in range(2, limit):
         while num % check == 0:
             factors.append(check)
             num /= check
     if num > 1:
-        factors.append(num)
+        factors.append(int(num))
     return factors
 
 

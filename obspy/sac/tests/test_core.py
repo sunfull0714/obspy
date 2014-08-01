@@ -2,6 +2,9 @@
 """
 The sac.core test suite.
 """
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
 
 from obspy import Stream, Trace, read, UTCDateTime
 from obspy.core.util import NamedTemporaryFile
@@ -27,7 +30,7 @@ class CoreTestCase(unittest.TestCase):
             [-8.74227766e-08, -3.09016973e-01,
              -5.87785363e-01, -8.09017122e-01, -9.51056600e-01,
              -1.00000000e+00, -9.51056302e-01, -8.09016585e-01,
-             -5.87784529e-01, -3.09016049e-01], dtype='float32')
+             -5.87784529e-01, -3.09016049e-01], dtype=np.float32)
 
     def test_readViaObsPy(self):
         """
@@ -44,7 +47,7 @@ class CoreTestCase(unittest.TestCase):
         np.testing.assert_array_almost_equal(self.testdata[0:10],
                                              tr.data[0:10])
 
-    def test_readwriteViaObspy(self):
+    def test_readwriteViaObsPy(self):
         """
         Write/Read files via L{obspy.Stream}
         """
@@ -62,7 +65,7 @@ class CoreTestCase(unittest.TestCase):
         tr1.stats.sac['depmen'] = tr.stats.sac['depmen']
         self.assertTrue(tr == tr1)
 
-    def test_readXYwriteXYViaObspy(self):
+    def test_readXYwriteXYViaObsPy(self):
         """
         Write/Read files via L{obspy.Stream}
         """
@@ -73,7 +76,7 @@ class CoreTestCase(unittest.TestCase):
             tr1 = read(tempfile)[0]
         self.assertTrue(tr == tr1)
 
-    def test_readwriteXYViaObspy(self):
+    def test_readwriteXYViaObsPy(self):
         """
         Read files via L{obspy.Stream}
         """
@@ -92,7 +95,7 @@ class CoreTestCase(unittest.TestCase):
         np.testing.assert_array_almost_equal(self.testdata[0:10],
                                              tr1.data[0:10])
 
-    def test_readBigEndianViaObspy(self):
+    def test_readBigEndianViaObsPy(self):
         """
         Read files via L{obspy.Stream}
         """
@@ -185,7 +188,7 @@ class CoreTestCase(unittest.TestCase):
         head = {'network': 'NL', 'station': 'HGN', 'location': '00',
                 'channel': 'BHZ', 'calib': 1.0, 'sampling_rate': 40.0,
                 'starttime': UTCDateTime(2003, 5, 29, 2, 13, 22, 43400)}
-        data = np.random.randint(0, 5000, 11947).astype("int32")
+        data = np.random.randint(0, 5000, 11947).astype(np.int32)
         st = Stream([Trace(header=head, data=data)])
         # write them as SAC
         with NamedTemporaryFile() as tf:
@@ -280,7 +283,7 @@ class CoreTestCase(unittest.TestCase):
         """
         Test case for issue #156.
         """
-        #1
+        # 1
         tr = Trace()
         tr.stats.delta = 0.01
         tr.data = np.arange(0, 3000)
@@ -288,9 +291,9 @@ class CoreTestCase(unittest.TestCase):
             sac_file = tf.name
             tr.write(sac_file, 'SAC')
             st = read(sac_file)
-        self.assertEquals(st[0].stats.delta, 0.01)
-        self.assertEquals(st[0].stats.sampling_rate, 100.0)
-        #2
+        self.assertEqual(st[0].stats.delta, 0.01)
+        self.assertEqual(st[0].stats.sampling_rate, 100.0)
+        # 2
         tr = Trace()
         tr.stats.delta = 0.005
         tr.data = np.arange(0, 2000)
@@ -298,8 +301,8 @@ class CoreTestCase(unittest.TestCase):
             sac_file = tf.name
             tr.write(sac_file, 'SAC')
             st = read(sac_file)
-        self.assertEquals(st[0].stats.delta, 0.005)
-        self.assertEquals(st[0].stats.sampling_rate, 200.0)
+        self.assertEqual(st[0].stats.delta, 0.005)
+        self.assertEqual(st[0].stats.sampling_rate, 200.0)
 
     def test_writeSACXYWithMinimumStats(self):
         """
@@ -312,8 +315,8 @@ class CoreTestCase(unittest.TestCase):
             sac_file = tf.name
             tr.write(sac_file, 'SACXY')
             st = read(sac_file)
-        self.assertEquals(st[0].stats.delta, 0.01)
-        self.assertEquals(st[0].stats.sampling_rate, 100.0)
+        self.assertEqual(st[0].stats.delta, 0.01)
+        self.assertEqual(st[0].stats.sampling_rate, 100.0)
 
     def test_notUsedButGivenHeaders(self):
         """
@@ -330,7 +333,7 @@ class CoreTestCase(unittest.TestCase):
             tr1.write(sac_file, 'SAC')
             tr2 = read(sac_file)[0]
         for i, header_value in enumerate(not_used):
-            self.assertEquals(int(tr2.stats.sac[header_value]), i)
+            self.assertEqual(int(tr2.stats.sac[header_value]), i)
 
     def test_writingMicroSeconds(self):
         """
@@ -341,7 +344,7 @@ class CoreTestCase(unittest.TestCase):
         head = {'network': 'NL', 'station': 'HGN', 'channel': 'BHZ',
                 'sampling_rate': 200.0,
                 'starttime': UTCDateTime(2003, 5, 29, 2, 13, 22, 999999)}
-        data = np.random.randint(0, 5000, 100).astype("int32")
+        data = np.random.randint(0, 5000, 100).astype(np.int32)
         st = Stream([Trace(header=head, data=data)])
         # write them as SAC
         with NamedTemporaryFile() as tf:
@@ -365,18 +368,18 @@ class CoreTestCase(unittest.TestCase):
 
     def test_writeSmallTrace(self):
         """
-        Tests writing Traces containing 0, 1 or 2 samples only.
+        Tests writing Traces containing 0, 1, 2, 3, 4 samples only.
         """
         for format in ['SAC', 'SACXY']:
-            for num in range(0, 4):
+            for num in range(5):
                 tr = Trace(data=np.arange(num))
                 with NamedTemporaryFile() as tf:
                     tempfile = tf.name
                     tr.write(tempfile, format=format)
                     # test results
                     st = read(tempfile, format=format)
-                self.assertEquals(len(st), 1)
-                self.assertEquals(len(st[0]), num)
+                self.assertEqual(len(st), 1)
+                np.testing.assert_array_equal(tr.data, st[0].data)
 
     def test_issue390(self):
         """

@@ -18,7 +18,7 @@ In case of memory problems during plotting with very large datasets, the
 options --nox and --nogaps can help to reduce the size of the plot
 considerably.
 
-Gap data can be written to a numpy npz file. This file can be loaded later
+Gap data can be written to a NumPy npz file. This file can be loaded later
 for optionally adding more data and plotting.
 
 Supported formats: All formats supported by ObsPy modules (currently: MSEED,
@@ -30,6 +30,9 @@ the format is autodetected.
 See also the example in the Tutorial section:
 http://tutorial.obspy.org
 """
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
 
 import sys
 import os
@@ -58,7 +61,7 @@ def compressStartend(x, stop_iteration):
             break
         i += 1
         first_ind = np.nonzero(inds)[0][0]
-        # to use fast numpy methods currently we only can merge two consecutive
+        # to use fast NumPy methods currently we only can merge two consecutive
         # pieces, so we set every second entry to False
         inds[first_ind + 1::2] = False
         inds_next = np.roll(inds, 1)
@@ -74,12 +77,12 @@ def parse_file_to_dict(data_dict, samp_int_dict, file, counter, format=None,
                        verbose=False, ignore_links=False):
     from matplotlib.dates import date2num
     if ignore_links and os.path.islink(file):
-        print("Ignoring symlink: %s" % (file))
+        print(("Ignoring symlink: %s" % (file)))
         return counter
     try:
         stream = read(file, format=format, headonly=True)
     except:
-        print("Can not read %s" % (file))
+        print(("Can not read %s" % (file)))
         return counter
     s = "%s %s" % (counter, file)
     if verbose:
@@ -99,7 +102,7 @@ def parse_file_to_dict(data_dict, samp_int_dict, file, counter, format=None,
             samp_int_dict[_id].\
                 append(1. / (24 * 3600 * tr.stats.sampling_rate))
         except ZeroDivisionError:
-            print("Skipping file with zero samlingrate: %s" % (file))
+            print(("Skipping file with zero samlingrate: %s" % (file)))
             return counter
     return (counter + 1)
 
@@ -107,7 +110,7 @@ def parse_file_to_dict(data_dict, samp_int_dict, file, counter, format=None,
 def recursive_parse(data_dict, samp_int_dict, path, counter, format=None,
                     verbose=False, ignore_links=False):
     if ignore_links and os.path.islink(path):
-        print("Ignoring symlink: %s" % (path))
+        print(("Ignoring symlink: %s" % (path)))
         return counter
     if os.path.isfile(path):
         counter = parse_file_to_dict(data_dict, samp_int_dict, path, counter,
@@ -117,7 +120,7 @@ def recursive_parse(data_dict, samp_int_dict, path, counter, format=None,
             counter = recursive_parse(data_dict, samp_int_dict, file, counter,
                                       format, verbose, ignore_links)
     else:
-        print("Problem with filename/dirname: %s" % (path))
+        print(("Problem with filename/dirname: %s" % (path)))
     return counter
 
 
@@ -226,8 +229,8 @@ def main(option_list=None):
     # Plot vertical lines if option 'event_times' was specified
     if options.event_times:
         times = options.event_times.split(',')
-        times = map(UTCDateTime, times)
-        times = map(date2num, times)
+        times = list(map(UTCDateTime, times))
+        times = list(map(date2num, times))
         for time in times:
             ax.axvline(time, color='k')
 
@@ -255,14 +258,14 @@ def main(option_list=None):
         write_npz(options.write, data, samp_int)
 
     # Loop through this dictionary
-    ids = data.keys()
+    ids = list(data.keys())
     # restrict plotting of results to given ids
     if options.ids:
         options.ids = options.ids.split(',')
-        ids = filter(lambda x: x in options.ids, ids)
+        ids = [x for x in ids if x in options.ids]
     ids = sorted(ids)[::-1]
     labels = [""] * len(ids)
-    print
+    print('\n')
     for _i, _id in enumerate(ids):
         labels[_i] = ids[_i]
         data[_id].sort()
@@ -312,7 +315,7 @@ def main(option_list=None):
                     start_, end_ = num2date((start_, end_))
                     start_ = UTCDateTime(start_.isoformat())
                     end_ = UTCDateTime(end_.isoformat())
-                    print "%s %s %s %.3f" % (_id, start_, end_, end_ - start_)
+                    print("%s %s %s %.3f" % (_id, start_, end_, end_ - start_))
 
     # Pretty format the plot
     ax.set_ylim(0 - 0.5, _i + 0.5)

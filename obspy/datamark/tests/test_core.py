@@ -3,6 +3,9 @@
 """
 The obspy.datamark.core test suite.
 """
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
 
 from obspy import read
 from obspy.core.utcdatetime import UTCDateTime
@@ -27,6 +30,7 @@ class CoreTestCase(unittest.TestCase):
         # 1
         st = read(filename)
         st.verify()
+        st.sort(keys=['channel'])
         self.assertEqual(len(st), 2)
         self.assertEqual(st[0].stats.starttime,
                          UTCDateTime('2010-03-03T02:00:00.000000Z'))
@@ -46,6 +50,7 @@ class CoreTestCase(unittest.TestCase):
         # 1
         st = readDATAMARK(filename)
         st.verify()
+        st.sort(keys=['channel'])
         self.assertEqual(len(st), 2)
         self.assertEqual(st[0].stats.starttime,
                          UTCDateTime('2010-03-03T02:00:00.000000Z'))

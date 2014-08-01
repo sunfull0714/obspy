@@ -9,6 +9,10 @@ The obspy.fdsn.wadl_parser test suite.
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
+
 from obspy import UTCDateTime
 
 from obspy.fdsn.wadl_parser import WADLParser
@@ -30,7 +34,7 @@ class WADLParserTestCase(unittest.TestCase):
         Parses wadl, returns WADLParser and any catched warnings.
         """
         filename = os.path.join(self.data_path, filename)
-        with open(filename, "rt") as fh:
+        with open(filename, "rb") as fh:
             wadl_string = fh.read()
         with warnings.catch_warnings(record=True) as w:
             # Cause all warnings to always be triggered.
@@ -43,7 +47,7 @@ class WADLParserTestCase(unittest.TestCase):
         Tests the parsing of a dataselect wadl.
         """
         filename = os.path.join(self.data_path, "dataselect.wadl")
-        with open(filename, "rt") as fh:
+        with open(filename, "rb") as fh:
             wadl_string = fh.read()
         parser = WADLParser(wadl_string)
         params = parser.parameters
@@ -82,10 +86,10 @@ class WADLParserTestCase(unittest.TestCase):
         """
         Tests the parsing of an event wadl.
         """
-        filename = os.path.join(self.data_path, "event.wadl")
-        with open(filename, "rt") as fh:
-            wadl_string = fh.read()
-        parser = WADLParser(wadl_string)
+        parser, w = self._parse_wadl_file("event.wadl")
+        self.assertEqual(len(w), 1)
+        self.assertTrue("cannot deal with the following required" in str(w[0]))
+
         params = parser.parameters
 
         # The WADL contains some short forms. In the parameters dictionary
@@ -151,7 +155,7 @@ class WADLParserTestCase(unittest.TestCase):
         Tests the parsing of a station wadl.
         """
         filename = os.path.join(self.data_path, "station.wadl")
-        with open(filename, "rt") as fh:
+        with open(filename, "rb") as fh:
             wadl_string = fh.read()
         parser = WADLParser(wadl_string)
         params = parser.parameters
@@ -198,7 +202,7 @@ class WADLParserTestCase(unittest.TestCase):
         Tests the reading of WADL files that have no type.
         """
         filename = os.path.join(self.data_path, "station_no_types.wadl")
-        with open(filename, "rt") as fh:
+        with open(filename, "rb") as fh:
             wadl_string = fh.read()
         parser = WADLParser(wadl_string)
         params = parser.parameters
@@ -229,7 +233,7 @@ class WADLParserTestCase(unittest.TestCase):
 
         # Now read a dataselect file with no types.
         filename = os.path.join(self.data_path, "dataselect_no_types.wadl")
-        with open(filename, "rt") as fh:
+        with open(filename, "rb") as fh:
             wadl_string = fh.read()
         parser = WADLParser(wadl_string)
         params = parser.parameters
@@ -250,7 +254,7 @@ class WADLParserTestCase(unittest.TestCase):
         Tests the parsing of an event wadl.
         """
         filename = os.path.join(self.data_path, "usgs_event.wadl")
-        with open(filename, "rt") as fh:
+        with open(filename, "rb") as fh:
             wadl_string = fh.read()
         parser = WADLParser(wadl_string)
         params = parser.parameters
@@ -295,7 +299,7 @@ class WADLParserTestCase(unittest.TestCase):
         # longestonly parameters.
         filename = os.path.join(self.data_path,
                                 "dataselect_missing_attributes.wadl")
-        with open(filename, "rt") as fh:
+        with open(filename, "rb") as fh:
             wadl_string = fh.read()
         with warnings.catch_warnings(record=True) as w:
             # Cause all warnings to always be triggered.
@@ -303,12 +307,12 @@ class WADLParserTestCase(unittest.TestCase):
             parser = WADLParser(wadl_string)
             # Assert that the warning raised is correct.
             self.assertEqual(len(w), 1)
-            msg = w[0].message.message
+            msg = str(w[0].message)
             self.assertTrue("quality" in msg)
             self.assertTrue("minimumlength" in msg)
             self.assertTrue("longestonly" in msg)
 
-        # Assert that some other parameters are still existant.
+        # Assert that some other parameters are still existent.
         params = parser.parameters
         self.assertTrue("starttime" in params)
         self.assertTrue("endtime" in params)
@@ -326,7 +330,7 @@ class WADLParserTestCase(unittest.TestCase):
         # parameters.
         filename = os.path.join(self.data_path,
                                 "event_missing_attributes.wadl")
-        with open(filename, "rt") as fh:
+        with open(filename, "rb") as fh:
             wadl_string = fh.read()
         with warnings.catch_warnings(record=True) as w:
             # Cause all warnings to always be triggered.
@@ -334,11 +338,11 @@ class WADLParserTestCase(unittest.TestCase):
             parser = WADLParser(wadl_string)
             # Assert that the warning raised is correct.
             self.assertEqual(len(w), 1)
-            msg = w[0].message.message
+            msg = str(w[0].message)
             self.assertTrue("includeallorigins" in msg)
             self.assertTrue("updatedafter" in msg)
 
-        # Assert that some other parameters are still existant.
+        # Assert that some other parameters are still existent.
         params = parser.parameters
         self.assertTrue("starttime" in params)
         self.assertTrue("endtime" in params)
@@ -366,7 +370,8 @@ class WADLParserTestCase(unittest.TestCase):
                     'minlongitude', 'minmagnitude', 'minradius', 'offset',
                     'orderby', 'originid', 'starttime', 'updatedafter']
         self.assertEqual(sorted(params.keys()), expected)
-        self.assertEqual(len(w), 0)
+        self.assertEqual(len(w), 1)
+        self.assertTrue("required parameters: magnitudetype" in str(w[0]))
 
         parser, w = self._parse_wadl_file("2014-01-07_iris_station.wadl")
         params = parser.parameters
@@ -425,7 +430,8 @@ class WADLParserTestCase(unittest.TestCase):
                     'minlongitude', 'minmagnitude', 'minradius', 'offset',
                     'orderby', 'starttime', 'updatedafter']
         self.assertEqual(sorted(params.keys()), expected)
-        self.assertEqual(len(w), 0)
+        self.assertEqual(len(w), 1)
+        self.assertTrue("required parameters: magnitudetype" in str(w[0]))
 
     def test_parsing_current_wadls_resif(self):
         """

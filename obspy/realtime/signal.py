@@ -20,6 +20,9 @@ in a previous packet, so has to be retrieved from memory see
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
 
 import math
 import sys
@@ -32,7 +35,7 @@ _TWO_PI = 2.0 * math.pi
 _MIN_FLOAT_VAL = 1.0e-20
 
 
-def offset(trace, offset=0.0, rtmemory_list=None):
+def offset(trace, offset=0.0, rtmemory_list=None):  # @UnusedVariable
     """
     Add the specified offset to the data.
 
@@ -45,7 +48,7 @@ def offset(trace, offset=0.0, rtmemory_list=None):
         optional
     :param rtmemory_list: Persistent memory used by this process for specified
         trace
-    :rtype: Numpy :class:`numpy.ndarray`
+    :rtype: NumPy :class:`numpy.ndarray`
     :return: Processed trace data from appended Trace object
     """
 
@@ -76,7 +79,9 @@ def scale(trace, factor=1.0, rtmemory_list=None):  # @UnusedVariable
     if not isinstance(trace, Trace):
         msg = "trace parameter must be an obspy.core.trace.Trace object."
         raise ValueError(msg)
-    trace.data *= factor
+    # XXX not sure how this should be for realtime analysis, here
+    # I assume, we do not want to change the underlying dtype
+    trace.data *= np.array(factor, dtype=trace.data.dtype)
     return trace.data
 
 
@@ -220,12 +225,12 @@ def boxcar(trace, width, rtmemory_list=None):
 
     i = 0
     i1 = i - width
-    i2 = i      # causal boxcar of width width
+    i2 = i  # causal boxcar of width width
     sum = 0.0
     icount = 0
     for i in range(np.size(sample)):
         value = 0.0
-        if (icount == 0):    # first pass, accumulate sum
+        if (icount == 0):  # first pass, accumulate sum
             for n in range(i1, i2 + 1):
                 if (n < 0):
                     value = rtmemory.input[width + n]
@@ -233,7 +238,7 @@ def boxcar(trace, width, rtmemory_list=None):
                     value = sample[n]
                 sum += value
                 icount = icount + 1
-        else:                # later passes, update sum
+        else:  # later passes, update sum
             if ((i1 - 1) < 0):
                 value = rtmemory.input[width + (i1 - 1)]
             else:
@@ -316,7 +321,7 @@ def tauc(trace, width, rtmemory_list=None):
     new_sample = np.zeros(np.size(sample), sample.dtype)
     deriv = np.zeros(np.size(sample), sample.dtype)
 
-    #sample_last = rtmemory.input[width - 1]
+    # sample_last = rtmemory.input[width - 1]
     sample_d = 0.0
     deriv_d = 0.0
     xval = rtmemory.output[0]
@@ -467,7 +472,7 @@ def mwpIntegral(trace, max_time, ref_time, mem_time=1.0, gain=1.0,
             msg = "Error: Mwp: attempt to access rtmemory.input array of " + \
                 "size=%d at invalid index=%d: this should not happen!" % \
                 (np.size(rtmemory.input), n + np.size(rtmemory.input))
-            print msg
+            print(msg)
             continue  # should never reach here
         disp_amp = amplitude - mwp_amp_at_pick
         # check displacement polarity
@@ -535,7 +540,7 @@ def kurtosis(trace, win=3.0, rtmemory_list=None):
     Apply recursive kurtosis calculation on data.
 
     Recursive kurtosis is computed using the [ChassandeMottin2002]_
-    formulation adjusted to give the kurtosis of a gaussian distribution = 0.0.
+    formulation adjusted to give the kurtosis of a Gaussian distribution = 0.0.
 
     :type trace: :class:`~obspy.core.trace.Trace`
     :param trace: :class:`~obspy.core.trace.Trace` object to append to this
@@ -546,7 +551,7 @@ def kurtosis(trace, win=3.0, rtmemory_list=None):
         optional
     :param rtmemory_list: Persistent memory used by this process for specified
         trace
-    :rtype: Numpy :class:`numpy.ndarray`
+    :rtype: NumPy :class:`numpy.ndarray`
     :return: Processed trace data from appended Trace object
     """
     if not isinstance(trace, Trace):
@@ -610,7 +615,7 @@ def kurtosis(trace, win=3.0, rtmemory_list=None):
     k4_bar_last = rtmemory_k4_bar.input[0]
 
     # do recursive kurtosis
-    for i in xrange(npts):
+    for i in range(npts):
         mu1 = a1 * mu1_last + C1 * sample[i]
         dx2 = (sample[i] - mu1_last) * (sample[i] - mu1_last)
         mu2 = a1 * mu2_last + C2 * dx2

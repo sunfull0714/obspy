@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
 
 from copy import deepcopy
 from obspy import UTCDateTime, Stream, Trace, read
@@ -80,15 +83,21 @@ class StreamTestCase(unittest.TestCase):
                     np.testing.assert_array_equal(tr.data, data_filt)
                     self.assertTrue('processing' in tr.stats)
                     self.assertEqual(len(tr.stats.processing), 1)
-                    self.assertEqual(tr.stats.processing[0], "filter:%s:%s" %
-                                     (filt_type, filt_ops))
+                    self.assertTrue("filter" in tr.stats.processing[0])
+                    self.assertTrue(filt_type in tr.stats.processing[0])
+                    for key, value in filt_ops.items():
+                        self.assertTrue("'%s': %s" % (key, value)
+                                        in tr.stats.processing[0])
                 st.filter(filt_type, **filt_ops)
                 for i, tr in enumerate(st):
                     self.assertTrue('processing' in tr.stats)
                     self.assertEqual(len(tr.stats.processing), 2)
                     for proc_info in tr.stats.processing:
-                        self.assertEqual(proc_info, "filter:%s:%s" %
-                                         (filt_type, filt_ops))
+                        self.assertTrue("filter" in proc_info)
+                        self.assertTrue(filt_type in proc_info)
+                        for key, value in filt_ops.items():
+                            self.assertTrue("'%s': %s" % (key, value)
+                                            in proc_info)
 
         # some tests that should raise an Exception
         st = streams[0]

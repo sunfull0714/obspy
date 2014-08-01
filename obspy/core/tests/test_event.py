@@ -1,13 +1,26 @@
 # -*- coding: utf-8 -*-
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
 
 import copy
 from obspy.core.event import readEvents, Catalog, Event, WaveformStreamID, \
     Origin, CreationInfo, ResourceIdentifier, Comment, Pick
 from obspy.core.utcdatetime import UTCDateTime
+from obspy.core.util.testing import ImageComparison, HAS_COMPARE_IMAGE
+from obspy.core.util.decorator import skipIf
 import os
 import sys
 import unittest
 import warnings
+
+# checking for matplotlib/basemap
+try:
+    from matplotlib import rcParams
+    import mpl_toolkits.basemap  # NOQA
+    HAS_BASEMAP = True
+except ImportError:
+    HAS_BASEMAP = False
 
 
 class EventTestCase(unittest.TestCase):
@@ -180,6 +193,7 @@ class CatalogTestCase(unittest.TestCase):
     def setUp(self):
         # directory where the test files are located
         path = os.path.join(os.path.dirname(__file__), 'data')
+        self.image_dir = os.path.join(os.path.dirname(__file__), 'images')
         self.iris_xml = os.path.join(path, 'iris_events.xml')
         self.neries_xml = os.path.join(path, 'neries_events.xml')
         # Clear the Resource Identifier dict for the tests. NEVER do this
@@ -387,10 +401,12 @@ class CatalogTestCase(unittest.TestCase):
             attr_filter = attr.split('.')[-1]
             cat_smaller = cat.filter('%s < %s' % (attr_filter, value))
             cat_bigger = cat.filter('%s >= %s' % (attr_filter, value))
-            self.assertTrue(all(getattrs(event, attr) < value
-                                for event in cat_smaller))
-            self.assertTrue(all(getattrs(event, attr) >= value
-                                for event in cat_bigger))
+            self.assertTrue(all(True if a is None else a < value
+                                for event in cat_smaller
+                                for a in [getattrs(event, attr)]))
+            self.assertTrue(all(False if a is None else a >= value
+                                for event in cat_bigger
+                                for a in [getattrs(event, attr)]))
             self.assertTrue(all(event in cat
                                 for event in (cat_smaller + cat_bigger)))
             cat_smaller_inverse = cat.filter(
@@ -408,6 +424,51 @@ class CatalogTestCase(unittest.TestCase):
         """
         cat = readEvents(self.neries_xml)
         self.assertEqual(str(cat.resource_id), r"smi://eu.emsc/unid")
+
+    @skipIf(not (HAS_COMPARE_IMAGE and HAS_BASEMAP),
+            'nose not installed, matplotlib too old or basemap not installed')
+    def test_catalog_plot_cylindrical(self):
+        """
+        Tests the catalog preview plot, default parameters.
+        """
+        cat = readEvents()
+        with ImageComparison(self.image_dir, "catalog1.png") as ic:
+            rcParams['savefig.dpi'] = 72
+            cat.plot(outfile=ic.name)
+
+    @skipIf(not (HAS_COMPARE_IMAGE and HAS_BASEMAP),
+            'nose not installed, matplotlib too old or basemap not installed')
+    def test_catalog_plot_ortho(self):
+        """
+        Tests the catalog preview plot, ortho projection, some non-default
+        parameters.
+        """
+        cat = readEvents()
+        with ImageComparison(self.image_dir, "catalog2.png") as ic:
+            rcParams['savefig.dpi'] = 72
+            cat.plot(outfile=ic.name, projection="ortho",
+                     resolution="c",
+                     water_fill_color="b", label=None)
+
+    @skipIf(not (HAS_COMPARE_IMAGE and HAS_BASEMAP),
+            'nose not installed, matplotlib too old or basemap not installed')
+    def test_catalog_plot_local(self):
+        """
+        Tests the catalog preview plot, local projection, some more non-default
+        parameters.
+        """
+        cat = readEvents()
+        reltol = 1
+        # some ticklabels are slightly offset on py 3.3.3 in travis..
+        # e.g. see http://tests.obspy.org/13309/#1
+        if (sys.version_info[0]) == 3:
+            reltol = 5
+        with ImageComparison(self.image_dir, "catalog3.png",
+                             reltol=reltol) as ic:
+            rcParams['savefig.dpi'] = 72
+            cat.plot(outfile=ic.name, projection="local",
+                     resolution="i", continent_fill_color="0.3",
+                     color="date", colormap="gist_heat")
 
 
 class WaveformStreamIDTestCase(unittest.TestCase):
@@ -519,20 +580,20 @@ class ResourceIdentifierTestCase(unittest.TestCase):
         NEVER modify the __resource_id_weak_dict!
 
         Only those ResourceIdentifiers that have a reference to an object that
-        is refered to somewhere else should stay in the dictionary.
+        is referred to somewhere else should stay in the dictionary.
         """
         r_dict = ResourceIdentifier._ResourceIdentifier__resource_id_weak_dict
         _r1 = ResourceIdentifier()  # NOQA
-        self.assertEqual(len(r_dict.keys()), 0)
+        self.assertEqual(len(list(r_dict.keys())), 0)
         # Adding a ResourceIdentifier with an object that has a reference
         # somewhere will have no effect because it gets garbage collected
         # pretty much immediately.
         _r2 = ResourceIdentifier(referred_object=UTCDateTime())  # NOQA
-        self.assertEqual(len(r_dict.keys()), 0)
+        self.assertEqual(len(list(r_dict.keys())), 0)
         # Give it a reference and it will stick around.
         obj = UTCDateTime()
         _r3 = ResourceIdentifier(referred_object=obj)  # NOQA
-        self.assertEqual(len(r_dict.keys()), 1)
+        self.assertEqual(len(list(r_dict.keys())), 1)
 
     def test_adding_a_referred_object_after_creation(self):
         """
@@ -568,10 +629,10 @@ class ResourceIdentifierTestCase(unittest.TestCase):
         res2 = ResourceIdentifier(referred_object=obj_b)
         # Now two keys should be in the global dict.
         rdict = ResourceIdentifier._ResourceIdentifier__resource_id_weak_dict
-        self.assertEqual(len(rdict.keys()), 2)
+        self.assertEqual(len(list(rdict.keys())), 2)
         # Deleting the objects should also remove the from the dictionary.
         del obj_a, obj_b
-        self.assertEqual(len(rdict.keys()), 0)
+        self.assertEqual(len(list(rdict.keys())), 0)
         # references are still around but no longer have associates objects.
         self.assertEqual(res1.getReferredObject(), None)
         self.assertEqual(res2.getReferredObject(), None)

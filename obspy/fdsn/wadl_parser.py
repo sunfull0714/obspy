@@ -12,19 +12,24 @@ and should be removed once the datacenters are fully standard compliant.
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
+
 from obspy import UTCDateTime
 from obspy.fdsn.header import DEFAULT_DATASELECT_PARAMETERS, \
     DEFAULT_STATION_PARAMETERS, DEFAULT_EVENT_PARAMETERS, \
     WADL_PARAMETERS_NOT_TO_BE_PARSED, DEFAULT_TYPES
 
 from collections import defaultdict
+import io
 from lxml import etree
 import warnings
 
 
 class WADLParser(object):
     def __init__(self, wadl_string):
-        doc = etree.fromstring(wadl_string)
+        doc = etree.parse(io.BytesIO(wadl_string)).getroot()
         self.nsmap = doc.nsmap
         self._ns = self.nsmap.get(None, None)
         self.parameters = {}
@@ -73,7 +78,7 @@ class WADLParser(object):
         # that have query in them. If all of that fails but an empty "id"
         # attribute is available, choose that.
         else:
-            for key in all_parameters.iterkeys():
+            for key in all_parameters.keys():
                 if "query" in key and "auth" not in key:
                     parameters = all_parameters[key]
                     break

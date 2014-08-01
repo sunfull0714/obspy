@@ -8,6 +8,10 @@ Base utilities and constants for ObsPy.
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
+from future.utils import native_str
 
 from obspy.core.util.misc import toIntOrZero
 from obspy.core.util.obspy_types import OrderedDict
@@ -23,15 +27,16 @@ import tempfile
 # defining ObsPy modules currently used by runtests and the path function
 DEFAULT_MODULES = ['core', 'gse2', 'mseed', 'sac', 'wav', 'signal', 'imaging',
                    'xseed', 'seisan', 'sh', 'segy', 'taup', 'seg2', 'db',
-                   'realtime', 'datamark', 'css', 'y', 'pde', 'station']
+                   'realtime', 'datamark', 'css', 'y', 'pde', 'station',
+                   'ndk']
 NETWORK_MODULES = ['arclink', 'seishub', 'iris', 'neries', 'earthworm',
                    'seedlink', 'neic', 'fdsn']
 ALL_MODULES = DEFAULT_MODULES + NETWORK_MODULES
 
 # default order of automatic format detection
 WAVEFORM_PREFERRED_ORDER = ['MSEED', 'SAC', 'GSE2', 'SEISAN', 'SACXY', 'GSE1',
-                            'Q', 'SH_ASC', 'SLIST', 'TSPAIR', 'Y', 'SEGY',
-                            'SU', 'SEG2', 'WAV', 'PICKLE', 'DATAMARK', 'CSS']
+                            'Q', 'SH_ASC', 'SLIST', 'TSPAIR', 'Y', 'PICKLE',
+                            'SEGY', 'SU', 'SEG2', 'WAV', 'DATAMARK', 'CSS']
 EVENT_PREFERRED_ORDER = ['QUAKEML']
 
 _sys_is_le = sys.byteorder == 'little'
@@ -42,7 +47,7 @@ class NamedTemporaryFile(object):
     """
     Weak replacement for the Python's tempfile.TemporaryFile.
 
-    This class is a replacment for :func:`tempfile.NamedTemporaryFile` but
+    This class is a replacement for :func:`tempfile.NamedTemporaryFile` but
     will work also with Windows 7/Vista's UAC.
 
     :type dir: str
@@ -55,10 +60,8 @@ class NamedTemporaryFile(object):
     .. rubric:: Example
 
     >>> with NamedTemporaryFile() as tf:
-    ...     tf._fileobj  # doctest: +ELLIPSIS
-    ...     tf.write("test")
+    ...     _ = tf.write(b"test")
     ...     os.path.exists(tf.name)
-    <open file '<fdopen>', mode 'w+b' at 0x...>
     True
     >>> # when using the with statement, the file is deleted at the end:
     >>> os.path.exists(tf.name)
@@ -67,9 +70,9 @@ class NamedTemporaryFile(object):
     >>> with NamedTemporaryFile() as tf:
     ...     filename = tf.name
     ...     with open(filename, 'wb') as fh:
-    ...         fh.write("just a test")
+    ...         _ = fh.write(b"just a test")
     ...     with open(filename, 'r') as fh:
-    ...         print fh.read()
+    ...         print(fh.read())
     just a test
     >>> # when using the with statement, the file is deleted at the end:
     >>> os.path.exists(tf.name)
@@ -107,7 +110,7 @@ def createEmptyDataChunk(delta, dtype, fill_value=None):
     >>> createEmptyDataChunk(3, 'int', 10)
     array([10, 10, 10])
 
-    >>> createEmptyDataChunk(6, np.dtype('complex128'), 0)
+    >>> createEmptyDataChunk(6, np.complex128, 0)
     array([ 0.+0.j,  0.+0.j,  0.+0.j,  0.+0.j,  0.+0.j,  0.+0.j])
 
     >>> createEmptyDataChunk(3, 'f') # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
@@ -115,6 +118,9 @@ def createEmptyDataChunk(delta, dtype, fill_value=None):
                  mask = ...,
                  ...)
     """
+    # For compatibility with NumPy 1.4
+    if isinstance(dtype, str):
+        dtype = native_str(dtype)
     if fill_value is None:
         temp = np.ma.masked_all(delta, dtype=np.dtype(dtype))
     elif (isinstance(fill_value, list) or isinstance(fill_value, tuple)) \
@@ -153,11 +159,12 @@ def getExampleFile(filename):
     >>> getExampleFile('does.not.exists')  # doctest: +ELLIPSIS
     Traceback (most recent call last):
     ...
-    IOError: Could not find file does.not.exists ...
+    OSError: Could not find file does.not.exists ...
     """
     for module in ALL_MODULES:
         try:
-            mod = __import__("obspy.%s.tests" % module, fromlist=["obspy"])
+            mod = __import__("obspy.%s.tests" % module,
+                             fromlist=[native_str("obspy")])
         except ImportError:
             continue
         file = os.path.join(mod.__path__[0], "data", filename)
@@ -165,7 +172,7 @@ def getExampleFile(filename):
             return file
     msg = "Could not find file %s in tests/data directory " % filename + \
           "of ObsPy modules"
-    raise IOError(msg)
+    raise OSError(msg)
 
 
 def _getEntryPoints(group, subgroup=None):
@@ -220,6 +227,7 @@ ENTRY_POINTS = {
     'rotate': _getEntryPoints('obspy.plugin.rotate'),
     'detrend': _getEntryPoints('obspy.plugin.detrend'),
     'integrate': _getEntryPoints('obspy.plugin.integrate'),
+    'interpolate': _getEntryPoints('obspy.plugin.interpolate'),
     'differentiate': _getEntryPoints('obspy.plugin.differentiate'),
     'waveform': _getOrderedEntryPoints('obspy.plugin.waveform',
                                        'readFormat', WAVEFORM_PREFERRED_ORDER),
@@ -293,7 +301,29 @@ def getMatplotlibVersion():
         import matplotlib
         version = matplotlib.__version__
         version = version.split("~rc")[0]
-        version = map(toIntOrZero, version.split("."))
+        version = list(map(toIntOrZero, version.split(".")))
+    except ImportError:
+        version = None
+    return version
+
+
+def getSciPyVersion():
+    """
+    Get SciPy version information.
+
+    :returns: SciPy version as a list of three integers or ``None`` if scipy
+        import fails.
+        The last version number can indicate different things like it being a
+        version from the old svn trunk, the latest git repo, some release
+        candidate version, ...
+        If the last number cannot be converted to an integer it will be set to
+        0.
+    """
+    try:
+        import scipy
+        version = scipy.__version__
+        version = version.split("~rc")[0]
+        version = list(map(toIntOrZero, version.split(".")))
     except ImportError:
         version = None
     return version
@@ -314,8 +344,18 @@ def _readFromPlugin(plugin_type, filename, format=None, **kwargs):
                 format_ep.dist.key,
                 'obspy.plugin.%s.%s' % (plugin_type, format_ep.name),
                 'isFormat')
+            # If it is a file-like object, store the position and restore it
+            # later to avoid that the isFormat() functions move the file
+            # pointer.
+            if hasattr(filename, "tell") and hasattr(filename, "seek"):
+                position = filename.tell()
+            else:
+                position = None
             # check format
-            if isFormat(filename):
+            is_format = isFormat(filename)
+            if position is not None:
+                filename.seek(0, 0)
+            if is_format:
                 break
         else:
             raise TypeError('Unknown format for file %s' % filename)
@@ -357,7 +397,7 @@ def make_format_plugin_table(group="waveform", method="read", numspaces=4,
     in docstrings.
 
     >>> table = make_format_plugin_table("event", "write", 4, True)
-    >>> print table  # doctest: +NORMALIZE_WHITESPACE
+    >>> print(table)  # doctest: +NORMALIZE_WHITESPACE
     ======= ================= =======================================
         Format  Required Module   _`Linked Function Call`
         ======= ================= =======================================
@@ -385,13 +425,14 @@ def make_format_plugin_table(group="waveform", method="read", numspaces=4,
     eps = _getOrderedEntryPoints("obspy.plugin.%s" % group, method,
                                  WAVEFORM_PREFERRED_ORDER)
     mod_list = []
-    for name, ep in eps.iteritems():
+    for name, ep in eps.items():
         module_short = ":mod:`%s`" % ".".join(ep.module_name.split(".")[:2])
         func = load_entry_point(ep.dist.key,
                                 "obspy.plugin.%s.%s" % (group, name), method)
-        func_str = ':func:`%s`' % ".".join((ep.module_name, func.func_name))
+        func_str = ':func:`%s`' % ".".join((ep.module_name, func.__name__))
         mod_list.append((name, module_short, func_str))
 
+    mod_list = sorted(mod_list)
     headers = ["Format", "Required Module", "_`Linked Function Call`"]
     maxlens = [max([len(x[0]) for x in mod_list] + [len(headers[0])]),
                max([len(x[1]) for x in mod_list] + [len(headers[1])]),
@@ -399,12 +440,12 @@ def make_format_plugin_table(group="waveform", method="read", numspaces=4,
 
     info_str = [" ".join(["=" * x for x in maxlens])]
     info_str.append(
-        " ".join([headers[i].ljust(maxlens[i]) for i in xrange(3)]))
+        " ".join([headers[i].ljust(maxlens[i]) for i in range(3)]))
     info_str.append(info_str[0])
 
     for mod_infos in mod_list:
         info_str.append(
-            " ".join([mod_infos[i].ljust(maxlens[i]) for i in xrange(3)]))
+            " ".join([mod_infos[i].ljust(maxlens[i]) for i in range(3)]))
     info_str.append(info_str[0])
 
     ret = " " * numspaces + ("\n" + " " * numspaces).join(info_str)

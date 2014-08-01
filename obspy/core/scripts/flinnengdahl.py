@@ -5,6 +5,10 @@ USAGE: %prog longitude latitude
 
 Get Flinn-Engahl region name from longitude and latitude
 """
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
+
 import sys
 from optparse import OptionParser
 from obspy import __version__
@@ -23,7 +27,7 @@ def main():
     latitude = float(args[1])
 
     flinn_engdahl = FlinnEngdahl()
-    print flinn_engdahl.get_region(longitude, latitude)
+    print(flinn_engdahl.get_region(longitude, latitude))
 
 
 if __name__ == '__main__':

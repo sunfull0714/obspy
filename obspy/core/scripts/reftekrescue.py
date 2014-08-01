@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-#------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # Filename: reftekrescue.py
 #  Purpose: Restore REFTEK data from raw binary data dumps
 #   Author: Tobias Megies
 #    Email: tobias.megies@geophysik.uni-muenchen.de
 #
 # Copyright (C) 2011 Tobias Megies
-#------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 """
 Restore REFTEK data from raw binary data dumps.
 
@@ -37,6 +37,9 @@ conversion tools.
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+from future.builtins import *  # NOQA
 
 from optparse import OptionParser
 import warnings
@@ -121,7 +124,7 @@ def reftek_rescue(input_file, output_folder, reftek_id, year,
                 pos = m.find(pattern, pos + 1)
 
     # rename event files with packet information included
-    for ev_no, ev_info in event_info.iteritems():
+    for ev_no, ev_info in event_info.items():
         filename_old = "%s.%04d" % (reftek_id, ev_no)
         filename_new = filename_old + \
             ".%d-%d-%05d" % (ev_info['EH'], ev_info['ET'], ev_info['DT'])
