@@ -287,7 +287,10 @@ class SeismicArray(object):
         time_shift_tbl = {}
         sx = sll
         while sx < slm:
-            inc = min(math.asin(vel_cor * sx), np.pi / 2.0)
+            try:
+                inc = math.asin(vel_cor * sx)
+            except ValueError:
+                 inc = np.pi / 2.0
 
             time_shifts = {}
             for key, value in geom.items():
@@ -350,17 +353,16 @@ class SeismicArray(object):
                 my[:, np.newaxis, :].repeat(grdpts_x, axis=1),
                 dtype='float32')
 
-    def vespagram(self, stream, event_or_baz, sll, slm, sls, latitude,
-                  longitude, absolute_height_in_km, method="DLS", nthroot=1,
-                  static_3D=False, vel_cor=4.0):
+    def vespagram(self, stream, event_or_baz, sll, slm, sls, starttime,
+                  endtime, latitude, longitude, absolute_height_in_km,
+                  method="DLS", nthroot=1, static_3D=False, vel_cor=4.0):
         baz = float(event_or_baz)
         time_shift_table = self.get_timeshift_baz(
             sll, slm, sls, baz, latitude, longitude, absolute_height_in_km,
             static_3D=static_3D, vel_cor=vel_cor)
 
-        vg = vespagram_baz(stream, sll, slm, sls, baz, method=method,
-                           nthroot=nthroot, static_3D=static_3D,
-                           vel_cor=vel_cor)
+        vg = vespagram_baz(stream, time_shift_table, starttime=starttime,
+                           endtime=endtime, method=method, nthroot=nthroot)
 
     def derive_rotation_from_array(self, stream, vp, vs, sigmau, latitude,
                                    longitude, elevation_in_m=0.0,
@@ -1766,8 +1768,8 @@ def vespagram_baz(stream, time_shift_table, starttime, endtime,
     """
     fs = stream[0].stats.sampling_rate
 
-    mini = np.min(time_shift_table[:, :])
-    maxi = np.max(time_shift_table[:, :])
+    mini = min(min(i.values()) for i in time_shift_table.values())
+    maxi = max(max(i.values()) for i in time_shift_table.values())
     spoint, _ = get_stream_offsets(stream, (starttime - mini),
                                    (endtime - maxi))
 
