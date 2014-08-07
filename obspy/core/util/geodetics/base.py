@@ -17,6 +17,9 @@ import numpy as np
 import warnings
 
 
+KM_PER_DEG = 111.1949
+
+
 def calcVincentyInverse(lat1, lon1, lat2, lon2):
     """
     Vincenty Inverse Solution of Geodesics on the Ellipsoid.
